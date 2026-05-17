@@ -12,6 +12,8 @@ services:
     container_name: mcp-toolkit
     environment:
       MCPTK_AUTH_DISABLED: "1"   # dev-only; never set in production
+      MCPTK_DEMO_TRAFFIC: "1"    # synthesizes metric samples so the
+                                  # Grafana dashboards populate out-of-box
       METRICS_ENABLED: "1"
       METRICS_PATH: "/metrics"
       LOG_LEVEL: info
