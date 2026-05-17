@@ -47,9 +47,25 @@ def cmd_http(args: argparse.Namespace) -> int:
 
 
 def cmd_stdio(_: argparse.Namespace) -> int:
-    """Stub for stdio transport. Full FastMCP-stdio bridging lands in 0.2.x."""
-    print("stdio transport not yet wired in 0.1.0 — use `http` for now.", file=sys.stderr)
-    return 2
+    """Run the demo toolkit on stdio. Local Claude / Cursor / etc.
+
+    Bridges to FastMCP's built-in stdio transport. Auth is bypassed for
+    stdio runs by design: the transport is single-tenant, single-process,
+    and inherits the parent's privileges — bearer tokens would be theatre.
+    Multi-tenant / authenticated deploys must use the HTTP transport.
+    """
+    toolkit = _build_demo_toolkit()
+    # Build the toolkit *without* compose_app — we don't need FastAPI for
+    # stdio. Register tools directly with a fresh FastMCP and call .run().
+    from mcp.server.fastmcp import FastMCP
+
+    mcp = FastMCP(toolkit.name)
+    for spec in toolkit.tools():
+        mcp.add_tool(spec.handler, name=spec.name, description=spec.description)
+    # `FastMCP.run(transport="stdio")` blocks until SIGTERM/SIGINT or the
+    # parent closes stdin. Returns normally on a clean shutdown.
+    mcp.run(transport="stdio")
+    return 0
 
 
 def cmd_mint(args: argparse.Namespace) -> int:
@@ -130,7 +146,9 @@ def build_parser() -> argparse.ArgumentParser:
     http.add_argument("--port", type=int, default=8080)
     http.set_defaults(func=cmd_http)
 
-    stdio = sub.add_parser("stdio", help="Run the demo toolkit on stdio (stub in 0.1.0).")
+    stdio = sub.add_parser(
+        "stdio", help="Run the demo toolkit on stdio (for local Claude/Cursor/etc.)."
+    )
     stdio.set_defaults(func=cmd_stdio)
 
     mint = sub.add_parser("mint-token", help="Mint a bearer token (dev mode).")

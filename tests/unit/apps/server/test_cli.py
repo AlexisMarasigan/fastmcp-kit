@@ -68,11 +68,27 @@ class TestRevokeToken:
         assert "not found" in err
 
 
-class TestStdioStub:
-    def test_returns_2_for_now(self) -> None:
-        code, _, err = _run(["stdio"])
-        assert code == 2
-        assert "stdio transport not yet wired" in err
+class TestStdioTransport:
+    def test_stdio_wires_fastmcp(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The `stdio` subcommand registers tools with FastMCP and calls
+        `.run(transport="stdio")`. We monkeypatch `.run` to avoid actually
+        blocking on stdin during tests; the assertion is that the
+        transport string + tools made it through.
+        """
+        from mcp.server.fastmcp import FastMCP
+
+        captured: dict[str, object] = {}
+
+        def spy_run(self: FastMCP, transport: str = "stdio", **_: object) -> None:
+            captured["transport"] = transport
+            captured["tools"] = sorted(t.name for t in self._tool_manager._tools.values())
+
+        monkeypatch.setattr(FastMCP, "run", spy_run)
+
+        code, _, _ = _run(["stdio"])
+        assert code == 0
+        assert captured["transport"] == "stdio"
+        assert "ping" in captured["tools"]  # type: ignore[operator]
 
 
 @pytest.mark.parametrize("argv", [["mint-token", "--scopes", "x"]])
