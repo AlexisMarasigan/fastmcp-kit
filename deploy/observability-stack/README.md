@@ -1,12 +1,14 @@
-# One-click observability stack
+# One-click observability stack — **DEV ONLY**
 
-`docker compose up` brings the MCP server live behind Prometheus + Grafana with auto-provisioned dashboards.
+> **Read this first.** The file is named `compose.dev.yaml` for a reason. It runs the framework with bearer-auth disabled, synthetic traffic enabled, and Grafana on `admin/admin`. **Never bring this stack up against an internet-routable host.** For production observability, scrape `/metrics` from your real `mcp-toolkit` deployment with your existing Prometheus.
+
+`docker compose up` brings the MCP server live behind Prometheus + Grafana with auto-provisioned dashboards — purely for local exploration and the framework's e2e tests.
 
 ## Usage
 
 ```bash
 # From the repo root:
-make stack-up                # builds + starts the stack
+make stack-up                # builds + starts the stack (dev profile)
 open http://localhost:3000   # Grafana, default admin/admin
 open http://localhost:9090   # Prometheus
 open http://localhost:8080   # MCP server (auth disabled in this profile)
@@ -16,7 +18,7 @@ open http://localhost:8080   # MCP server (auth disabled in this profile)
 
 | Path | Purpose |
 |---|---|
-| `compose.yaml` | The three-service compose file. |
+| `compose.dev.yaml` | The three-service compose file. Loud `dev` in the filename. |
 | `prometheus/prometheus.yml` | Scrape config; targets `mcp-toolkit:8080/metrics`. |
 | `grafana/provisioning/datasources/prometheus.yaml` | Pre-wires Prometheus as the default datasource. |
 | `grafana/provisioning/dashboards/dashboards.yaml` | Tells Grafana to load JSONs from `dashboards/`. |
@@ -26,11 +28,17 @@ open http://localhost:8080   # MCP server (auth disabled in this profile)
 
 ```bash
 uv run mcp-toolkit gen-dashboards --out deploy/observability-stack/grafana/dashboards
-docker compose -f deploy/observability-stack/compose.yaml restart grafana
+docker compose -f deploy/observability-stack/compose.dev.yaml restart grafana
 ```
 
-## Caveats
+## Dev-only env vars set here (NEVER set in production)
 
-- `MCPTK_AUTH_DISABLED=1` is set in the compose env. **Dev only.** Remove for any real deployment.
+| Env var | What it does | Why production must not set it |
+|---|---|---|
+| `MCPTK_AUTH_DISABLED=1` | Bypasses bearer-auth middleware entirely. Every request is treated as authenticated. | Exposes every tool to the public internet. |
+| `MCPTK_DEMO_TRAFFIC=1` | Background task emits synthetic invocation + auth-decision samples every ~3s. | Pollutes real metric series with fake data; would skew alerts. |
+| `GF_SECURITY_ADMIN_PASSWORD=admin` | Grafana admin password. | Well-known default — anyone hitting the URL gets admin. |
+
+## Other caveats
+
 - `prometheus-data` and `grafana-data` named volumes persist between runs. `make stack-down` keeps them; `make stack-clean` drops them.
-- The Grafana admin password (`admin`) is the compose-default. Change it before exposing this stack on a network.

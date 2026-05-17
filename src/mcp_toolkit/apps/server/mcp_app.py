@@ -154,7 +154,17 @@ def compose_app(toolkit: MCPToolkit) -> FastAPI:
         app.middleware("http")(tenancy_middleware(tenant_resolver))
 
     app.middleware("http")(
-        bearer_auth_middleware(token_store, disabled=settings.mcptk_auth_disabled)
+        bearer_auth_middleware(
+            token_store,
+            disabled=settings.mcptk_auth_disabled,
+            # /healthz + /metrics bypass auth so the kubelet's liveness +
+            # readiness probes succeed and Prometheus can scrape without
+            # a bearer token. Tool-dispatch paths under FastMCP remain
+            # gated. Set `AUTH_EXEMPT_PATHS=""` to lock everything (e.g.
+            # for an internal-network-only deployment that already has
+            # its own auth fronting the service).
+            exempt_paths=settings.auth_exempt_set,
+        )
     )
 
     # --- Operational routes ---

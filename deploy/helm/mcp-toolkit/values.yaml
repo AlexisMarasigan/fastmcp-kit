@@ -31,6 +31,15 @@ resources:
 
 # Configurable env. The framework reads these via pydantic-settings —
 # see `src/mcp_toolkit/shared/config.py` for the full surface.
+#
+# ⚠ NEVER SET IN PRODUCTION:
+#   MCPTK_AUTH_DISABLED=1   — bypasses bearer-auth entirely; exposes
+#                             every registered tool unauthenticated.
+#   MCPTK_DEMO_TRAFFIC=1    — emits synthetic metric samples; would
+#                             skew real alerting + dashboards.
+#   GF_SECURITY_ADMIN_PASSWORD=admin — well-known Grafana default.
+# These exist for the `deploy/observability-stack/compose.dev.yaml`
+# profile only.
 env:
   PORT: "8080"
   LOG_LEVEL: "info"
@@ -39,8 +48,13 @@ env:
   TOKEN_STORE: "upstash"        # "memory" for dev, "upstash" for prod
   METRICS_ENABLED: "1"
   METRICS_PATH: "/metrics"
+  # Routes that bypass bearer-auth so kubelet probes + Prometheus scrape
+  # work under TOKEN_STORE=upstash. Comma-separated, exact match.
+  # Set "" to lock every route (requires bearer for the probes too;
+  # most cluster ops want them open here).
+  AUTH_EXEMPT_PATHS: "/healthz,/metrics"
   TENANT_STRATEGY: "single"     # single | header | subdomain | token
-  # Set if you've installed `mcp-toolkit[otel]` and want OTLP export.
+  # Set if you've installed `fastmcp-kit[otel]` and want OTLP export.
   OTEL_EXPORTER_OTLP_ENDPOINT: ""
 
 # Upstash credentials live in a Secret you provision. The chart only

@@ -16,15 +16,84 @@ def _app_with_middleware(
     store: InMemoryTokenStore,
     *,
     disabled: bool = False,
+    exempt_paths: tuple[str, ...] = (),
 ) -> FastAPI:
     app = FastAPI()
-    app.middleware("http")(bearer_auth_middleware(store, disabled=disabled))
+    app.middleware("http")(
+        bearer_auth_middleware(store, disabled=disabled, exempt_paths=exempt_paths)
+    )
 
     @app.get("/echo")
     async def echo() -> dict[str, str]:
         return {"ok": "yes"}
 
+    @app.get("/healthz")
+    async def healthz() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/metrics")
+    async def metrics() -> dict[str, str]:
+        return {"metrics": "..."}
+
     return app
+
+
+class TestExemptPaths:
+    """Paths declared in `exempt_paths` skip auth entirely.
+
+    Operationally critical: kubelet liveness/readiness probes hit
+    /healthz with no bearer header; Prometheus scrapes /metrics the
+    same way. Both must succeed under TOKEN_STORE=upstash defaults.
+    """
+
+    def test_healthz_exempt_returns_200_without_auth(self) -> None:
+        store = InMemoryTokenStore()
+        client = TestClient(_app_with_middleware(store, exempt_paths=("/healthz",)))
+        resp = client.get("/healthz")
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok"}
+
+    def test_metrics_exempt_returns_200_without_auth(self) -> None:
+        store = InMemoryTokenStore()
+        client = TestClient(_app_with_middleware(store, exempt_paths=("/metrics",)))
+        resp = client.get("/metrics")
+        assert resp.status_code == 200
+
+    def test_non_exempt_route_still_requires_auth(self) -> None:
+        store = InMemoryTokenStore()
+        client = TestClient(_app_with_middleware(store, exempt_paths=("/healthz",)))
+        # /echo isn't exempt — must still 401.
+        assert client.get("/echo").status_code == 401
+
+    def test_empty_exempt_list_locks_everything(self) -> None:
+        store = InMemoryTokenStore()
+        client = TestClient(_app_with_middleware(store, exempt_paths=()))
+        assert client.get("/healthz").status_code == 401
+        assert client.get("/metrics").status_code == 401
+
+    def test_exempt_path_does_not_log_auth_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Probes must not log `auth.success` — that would pollute
+        observability with synthetic events for ops traffic.
+        """
+        from mcp_toolkit.domains.auth.server import middleware as mw_mod
+
+        captured: list[tuple[str, dict[str, object]]] = []
+
+        class Spy:
+            def info(self, event: str, /, **kwargs: object) -> None:
+                captured.append((event, kwargs))
+
+            warning = info
+            error = info
+            debug = info
+
+        monkeypatch.setattr(mw_mod, "_log", Spy())
+
+        store = InMemoryTokenStore()
+        client = TestClient(_app_with_middleware(store, exempt_paths=("/healthz",)))
+        client.get("/healthz")
+
+        assert not [(e, k) for e, k in captured if e == "auth.success"]
 
 
 @pytest.fixture

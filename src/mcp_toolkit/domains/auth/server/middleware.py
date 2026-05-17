@@ -13,7 +13,7 @@ expected caller.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from typing import TYPE_CHECKING
 
 from mcp_toolkit.shared.logging import bind_request_context, get_logger
@@ -32,6 +32,7 @@ def bearer_auth_middleware(
     store: TokenStore,
     *,
     disabled: bool = False,
+    exempt_paths: Iterable[str] = (),
 ) -> Callable[[Request, Endpoint], Awaitable[Response]]:
     """Build a FastAPI middleware that gates requests on bearer auth.
 
@@ -39,10 +40,22 @@ def bearer_auth_middleware(
         store: TokenStore impl used to resolve secrets.
         disabled: Dev escape hatch. Binds a synthetic `dev` token. NEVER set
             this in production. See `Settings.mcptk_auth_disabled`.
+        exempt_paths: routes that skip auth entirely. `compose_app` passes
+            `/healthz` + `/metrics` by default so kubelet probes succeed
+            and Prometheus can scrape without a token. Operational routes
+            only — never put tool-dispatch paths in this list.
     """
     from fastapi.responses import JSONResponse
 
+    exempt = frozenset(exempt_paths)
+
     async def middleware(request: Request, call_next: Endpoint) -> Response:
+        # Exempt operational routes (kubelet probes, Prometheus scrape).
+        # Checked before the disabled-escape-hatch so the dev fake-token
+        # doesn't get bound onto a probe context.
+        if request.url.path in exempt:
+            return await call_next(request)
+
         if disabled:
             # `token_id="dev"` is an *identifier*, not a credential — S106 / B106
             # are false positives here, the value is never used as a secret.
