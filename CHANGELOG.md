@@ -4,7 +4,52 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] — release-candidate
+## [0.1.1] — 2026-05-17
+
+Maintenance release. No library API changes. PyPI distribution rename
++ security hardening + infra fixes + refreshed PyPI long_description.
+
+### Changed
+- **PyPI distribution renamed `mcp-toolkit` → `fastmcp-kit`.** PyPI's
+  similarity rules rejected `mcp-toolkit`. Python module name stays
+  `mcp_toolkit` (same pattern as `pip install pyyaml` → `import yaml`).
+  README badges + project URLs updated.
+- **PyPI long_description + summary refreshed.** 0.1.0's PyPI page
+  carried the pre-release README ("Status: pre-release… not yet on
+  PyPI") because the rewrite landed after the publish. 0.1.1 ships
+  the live-on-PyPI README and a tighter tagline listing concrete
+  features.
+
+### Fixed
+- **`/healthz` + `/metrics` auth-exempt by default** (HIGH security
+  finding). Kubelet probes + Prometheus scrape no longer get 401
+  under `TOKEN_STORE=upstash`. New `Settings.auth_exempt_paths` is
+  user-tunable; `AUTH_EXEMPT_PATHS=""` locks everything. 5 new unit
+  tests pin the contract; non-exempt routes still 401.
+- **`compose.yaml` → `compose.dev.yaml`** (HIGH security finding).
+  The dev-only defaults (`MCPTK_AUTH_DISABLED=1`,
+  `MCPTK_DEMO_TRAFFIC=1`, Grafana `admin/admin`) now sit behind an
+  unmissable filename + bold "DEV ONLY" banner in the README.
+- **Empty-string bool env vars no longer crash Settings.** Hand-edited
+  `.env` files frequently leave bool stubs blank
+  (`MCPTK_AUTH_DISABLED=`). A `model_validator(mode="before")` drops
+  empty-string entries pre-validation so pydantic falls back to
+  declared defaults.
+- **Helm `values.yaml`** carries a prominent prod-forbidden env list
+  (`MCPTK_AUTH_DISABLED`, `MCPTK_DEMO_TRAFFIC`, Grafana admin
+  password).
+- **CI installs the `[observability]` + `[redis]` + `[otel]` extras**
+  in lint / typecheck / test / release jobs so the suite can import
+  its target modules.
+- **Dockerfile wheel glob** updated for the rename
+  (`mcp_toolkit-*.whl` → `fastmcp_kit-*.whl`).
+- **E2E workflow** generates a Markdown report under docs/ from pytest output
+  (the original step assumed a db2st-mcp-specific pytest plugin).
+  `stack-integration` job references `compose.dev.yaml` post-rename.
+  Job conclusion now reflects actual pytest exit code via an explicit
+  fail-step.
+
+## [0.1.0] — 2026-05-17
 
 Marks the framework's first publishable cut. All five sprints from the
 roadmap land; coverage gate restored to 80% (current: 85.75%); release
