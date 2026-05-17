@@ -19,7 +19,7 @@ jobs:
     name: Pre-release gates (lint + type + tests + security)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
       - uses: astral-sh/setup-uv@v3
@@ -42,7 +42,7 @@ jobs:
     needs: gates
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # auto-generated release notes need full history
           ref: ${{ github.event.inputs.tag || github.ref }}
@@ -97,7 +97,7 @@ jobs:
       name: pypi
       url: https://pypi.org/p/mcp-toolkit
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
       - uses: astral-sh/setup-uv@v3
