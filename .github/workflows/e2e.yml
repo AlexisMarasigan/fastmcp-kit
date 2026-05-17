@@ -23,8 +23,39 @@ jobs:
           enable-cache: true
       - run: uv python install 3.12
       - run: uv sync --frozen --group dev --extra observability
-      - name: Run E2E (writes docs/E2E-REPORT.md)
-        run: uv run pytest tests/e2e -m e2e --no-cov
+      - name: Run E2E suite
+        id: e2e
+        # `continue-on-error` so the workflow can still build + upload the
+        # report on failure. The final job conclusion is set by the
+        # `Fail job on test failure` step at the end.
+        continue-on-error: true
+        run: |
+          mkdir -p docs
+          set -o pipefail
+          uv run pytest tests/e2e -m e2e --no-cov 2>&1 | tee /tmp/pytest.log
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+      - name: Build E2E report
+        if: always()
+        run: |
+          mkdir -p docs
+          if [ "${{ steps.e2e.outputs.exit_code }}" = "0" ]; then
+            STATUS="✓ pass"
+          else
+            STATUS="✗ fail (exit ${{ steps.e2e.outputs.exit_code }})"
+          fi
+          {
+            echo "# E2E test report"
+            echo ""
+            echo "**Status:** ${STATUS}"
+            echo "**Commit:** ${{ github.sha }}"
+            echo "**Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            echo ""
+            echo "## Pytest output (tail)"
+            echo ""
+            echo '```'
+            tail -60 /tmp/pytest.log
+            echo '```'
+          } > docs/E2E-REPORT.md
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4
@@ -33,10 +64,13 @@ jobs:
           path: docs/E2E-REPORT.md
           if-no-files-found: warn
       - name: Comment PR with E2E summary
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && hashFiles('docs/E2E-REPORT.md') != ''
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           path: docs/E2E-REPORT.md
+      - name: Fail job on test failure
+        if: always() && steps.e2e.outputs.exit_code != '0'
+        run: exit 1
 
   stack-integration:
     name: Observability stack (compose-up smoke)
@@ -53,19 +87,19 @@ jobs:
           enable-cache: true
       - run: uv python install 3.12
       - run: uv sync --frozen --group dev --extra observability
-      - name: Bring up observability stack
+      - name: Bring up observability stack (dev profile)
         run: |
           cd deploy/observability-stack
-          docker compose up -d --wait
+          docker compose -f compose.dev.yaml up -d --wait
       - name: Run integration tests against running stack
         run: uv run pytest tests/integration -m integration --no-cov -v
       - name: Compose logs on failure
         if: failure()
         run: |
           cd deploy/observability-stack
-          docker compose logs --no-color
+          docker compose -f compose.dev.yaml logs --no-color
       - name: Tear down
         if: always()
         run: |
           cd deploy/observability-stack
-          docker compose down -v
+          docker compose -f compose.dev.yaml down -v
