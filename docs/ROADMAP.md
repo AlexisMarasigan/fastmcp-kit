@@ -83,7 +83,8 @@ with a runnable, demonstrable artifact.
 - ~~**stdio transport.**~~ ✅ Landed post-0.1.0 (commit f42fa8c). `mcp-toolkit stdio` bridges to FastMCP's stdio runner. Sharing state with a sidecar HTTP scrape endpoint remains a future item if anyone hits it.
 - ~~**Helm chart.**~~ ✅ Landed post-0.1.0. `deploy/helm/mcp-toolkit/` covers vanilla k8s consumers who don't run Knative.
 - ~~**Wire-level scope filter.**~~ ✅ Landed post-0.1.0. `mcp_toolkit.apps.server.scope_filter` ships `filter_tools_response` (pure function, side-effect free) + `scope_filter_middleware` (ASGI wrap that buffers + rewrites response bodies). `compose_app` will auto-mount when FastMCP HTTP transport pins; today consumers can call either surface directly.
-- **Second metric backend** (StatsD or OTLP metrics) behind the same `MetricSpec` API.
+- ~~**OTLP metrics backend.**~~ ✅ Landed post-0.1.0. `OtelMetricRegistry` mirrors `PrometheusRegistry`'s `MetricSpec` API but pushes via `PeriodicExportingMetricReader` instead of serving a pull endpoint. Behind the `[otel]` extra. Optional `reader=` override on construction so tests can inject `InMemoryMetricReader` and stay off the network.
+- **StatsD metric backend** behind the same `MetricSpec` API (paired with the OTLP one — different orgs still hit StatsD).
 - **GraphQL introspection-style** tool catalogue endpoint for clients that prefer querying over MCP `list_tools`.
 - **Tenant data isolation linter** — scans tool handlers for missing tenant filters in DB queries. (Domain-specific, hard to do generically — exploratory.)
 - **Dashboard hot-reload** — file watcher on the toolkit registry → regenerate dashboards on registration change without a Grafana restart.

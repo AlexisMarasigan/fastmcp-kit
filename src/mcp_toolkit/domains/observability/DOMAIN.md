@@ -8,7 +8,8 @@ Owns Prometheus metric registration, `/metrics` exposition, and Grafana dashboar
 |---|---|
 | `MetricSpec` | Declarative metric description. Name, type (counter / histogram / gauge), labels, help text. |
 | `MetricType` | Literal alias (`"counter" | "histogram" | "gauge"`). |
-| `PrometheusRegistry` | Wraps `prometheus_client.CollectorRegistry`. Lazy-imports the lib. |
+| `PrometheusRegistry` | Wraps `prometheus_client.CollectorRegistry`. Lazy-imports the lib. Pull-based (`/metrics` scrape). |
+| `OtelMetricRegistry` | OTLP-pushing parallel to `PrometheusRegistry`. Same `MetricSpec` API; push-based via `PeriodicExportingMetricReader`. Behind the `[otel]` extra. |
 | `DashboardModel` | Pydantic model for a Grafana dashboard. Serialises to Grafana's JSON. |
 | `DashboardGenerator` | Walks the registry → emits one dashboard per group + a system overview. |
 
