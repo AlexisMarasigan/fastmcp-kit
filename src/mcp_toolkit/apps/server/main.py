@@ -24,7 +24,7 @@ from mcp_toolkit.domains.registry.server.toolkit import MCPToolkit
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-_demo = MCPToolkit(name="mcp-toolkit-demo", version="0.1.0")
+_demo = MCPToolkit(name="mcp-toolkit-demo", version="0.1.1")
 
 
 @_demo.tool(group="demo", scopes=[])

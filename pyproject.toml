@@ -1,7 +1,7 @@
 [project]
 name = "fastmcp-kit"
-version = "0.1.0"
-description = "A batteries-included framework for building authenticated, scoped, observable MCP servers on top of FastMCP. Tool registration, scoped auth keys, Prometheus/Grafana observability, multi-tenancy. (Module: `import mcp_toolkit`.)"
+version = "0.1.1"
+description = "Framework for building authenticated, scoped, observable MCP servers on top of FastMCP. Tool registry, scoped bearer tokens, Prometheus + OTLP metrics, Grafana dashboards from code, multi-tenancy. `pip install fastmcp-kit` then `from mcp_toolkit import MCPToolkit`."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
