@@ -22,7 +22,7 @@ COPY src ./src
 # exposition and the dashboard generator work out-of-the-box. `[redis]`
 # stays opt-in to avoid forcing the Upstash client on stdio users.
 RUN uv build --wheel --out-dir /wheels \
- && WHEEL=$(ls /wheels/mcp_toolkit-*.whl) \
+ && WHEEL=$(ls /wheels/fastmcp_kit-*.whl) \
  && pip install --no-cache-dir --prefix=/install "${WHEEL}[observability]"
 
 
