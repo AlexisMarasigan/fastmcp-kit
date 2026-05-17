@@ -448,18 +448,6 @@ wheels = [
 ]
 
 [[package]]
-name = "grafanalib"
-version = "0.7.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "attrs" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/b7/a4/e413c2aa91e3ea631b0493f0c1473d6a48afa1fdc2b576ae6364a372bf30/grafanalib-0.7.1.tar.gz", hash = "sha256:3d92bb4e92ae78fe4e21c5b252ab51f4fdcacd8523ba5a44545b897b2a375b83", size = 59616, upload-time = "2024-01-12T10:35:11.018Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d3/6e/825081b0ae89031ec16de0c57bf6dbb06d26b69dc938c3461c831e409c9b/grafanalib-0.7.1-py3-none-any.whl", hash = "sha256:6fab5d7b837a1f2d1322ef762cd52e565ec0422707a7512765c59f668bdceb58", size = 62780, upload-time = "2024-01-12T10:35:08.788Z" },
-]
-
-[[package]]
 name = "grpcio"
 version = "1.80.0"
 source = { registry = "https://pypi.org/simple" }
@@ -742,11 +730,7 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-grafana = [
-    { name = "grafanalib" },
-]
 observability = [
-    { name = "grafanalib" },
     { name = "prometheus-client" },
 ]
 otel = [
@@ -777,8 +761,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "grafanalib", marker = "extra == 'grafana'", specifier = ">=0.7.1" },
-    { name = "grafanalib", marker = "extra == 'observability'", specifier = ">=0.7.1" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "mcp", specifier = ">=1.2.0" },
     { name = "opentelemetry-api", marker = "extra == 'otel'", specifier = ">=1.27.0" },

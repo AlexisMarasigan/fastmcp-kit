@@ -1,21 +1,20 @@
 """Grafana dashboard generator. Walks the toolkit registry and emits one
 `DashboardModel` per `ToolGroup` plus a system overview.
 
-The generator is dependency-free at the `DashboardModel` layer. Rendering
-to Grafana's concrete JSON model requires the `[grafana]` extra, which is
-where `grafanalib` is loaded.
+The generator is dependency-free at the `DashboardModel` layer.
+`to_grafana_json` renders to Grafana 11.x's JSON model directly — no
+external library needed (we previously used grafanalib but its output
+was incompatible with Grafana 11's panel schema).
 """
 
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING, Any
 
 from mcp_toolkit.domains.observability.shared.schemas import (
     DashboardModel,
     DashboardPanel,
 )
-from mcp_toolkit.shared.errors import OptionalDependencyMissingError
 from mcp_toolkit.shared.logging import get_logger
 
 if TYPE_CHECKING:
@@ -99,34 +98,71 @@ class DashboardGenerator:
     def to_grafana_json(self, model: DashboardModel) -> dict[str, Any]:
         """Render a `DashboardModel` into Grafana's JSON model.
 
-        Requires the `[grafana]` extra (grafanalib). Raises
-        `OptionalDependencyMissingError` otherwise.
-        """
-        try:
-            import grafanalib.core as G
-        except ImportError as e:  # pragma: no cover
-            raise OptionalDependencyMissingError("grafanalib", "grafana") from e
+        Hand-written to match Grafana 11.x's expected panel schema.
+        We previously delegated to grafanalib, but its `TimeSeries` output
+        omits axis fields that Grafana 11 dereferences during render
+        (`Cannot read properties of null (reading 'y')`).
 
-        # grafanalib's Dashboard.to_json_data() returns a dict shape Grafana
-        # accepts for provisioning. Keep the panel set minimal — one
-        # timeseries per declared panel is enough for 0.1.0.
-        panels = [
-            G.TimeSeries(
-                title=p.title,
-                dataSource="Prometheus",
-                targets=[G.Target(expr=p.query, legendFormat=p.legend or p.title)],
+        This renderer emits the minimal viable timeseries panel:
+        `fieldConfig.defaults.custom` carries the line shape; `options`
+        carries legend + tooltip; `gridPos` lays panels out in a 2-column
+        grid (12-unit wide, 8 high). One panel per declared
+        `DashboardPanel`.
+        """
+        panels: list[dict[str, Any]] = []
+        for i, p in enumerate(model.panels):
+            panels.append(
+                {
+                    "id": i + 1,
+                    "type": "timeseries",
+                    "title": p.title,
+                    "datasource": {"type": "prometheus", "uid": "prometheus"},
+                    "targets": [
+                        {
+                            "expr": p.query,
+                            "legendFormat": p.legend or p.title,
+                            "refId": "A",
+                            "datasource": {"type": "prometheus", "uid": "prometheus"},
+                        }
+                    ],
+                    "gridPos": {"x": (i % 2) * 12, "y": (i // 2) * 8, "w": 12, "h": 8},
+                    "fieldConfig": {
+                        "defaults": {
+                            "custom": {
+                                "drawStyle": "line",
+                                "lineInterpolation": "linear",
+                                "lineWidth": 1,
+                                "fillOpacity": 10,
+                                "showPoints": "auto",
+                                "spanNulls": False,
+                                "axisPlacement": "auto",
+                                "scaleDistribution": {"type": "linear"},
+                            },
+                            "color": {"mode": "palette-classic"},
+                            "unit": "short",
+                        },
+                        "overrides": [],
+                    },
+                    "options": {
+                        "legend": {
+                            "displayMode": "list",
+                            "placement": "bottom",
+                            "showLegend": True,
+                        },
+                        "tooltip": {"mode": "single", "sort": "none"},
+                    },
+                }
             )
-            for p in model.panels
-        ]
-        dashboard = G.Dashboard(
-            title=model.title,
-            uid=model.uid,
-            tags=model.tags,
-            panels=panels,
-        ).auto_panel_ids()
-        # grafanalib emits a custom encoder-friendly object; round-trip
-        # through json to get a plain dict.
-        rendered: dict[str, Any] = json.loads(
-            json.dumps(dashboard, default=lambda o: o.to_json_data())
-        )
-        return rendered
+
+        return {
+            "schemaVersion": 39,
+            "uid": model.uid,
+            "title": model.title,
+            "tags": list(model.tags),
+            "timezone": "browser",
+            "time": {"from": "now-15m", "to": "now"},
+            "refresh": "10s",
+            "panels": panels,
+            "annotations": {"list": []},
+            "templating": {"list": []},
+        }

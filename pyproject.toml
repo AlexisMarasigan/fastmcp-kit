@@ -46,13 +46,14 @@ dependencies = [
 redis = ["upstash-redis>=1.2.0"]
 # Prometheus exposition + scrape endpoint.
 prometheus = ["prometheus-client>=0.21.0"]
-# Grafana dashboard generation. grafanalib emits the JSON model
-# consumed by Grafana's provisioning API.
-grafana = ["grafanalib>=0.7.1"]
+# Grafana dashboard generation is built-in (we drive Grafana 11's JSON
+# schema directly — no external lib needed). The empty `grafana` extra
+# stays declared so existing install commands like
+# `pip install mcp-toolkit[grafana]` don't break.
+grafana = []
 # Both metrics and dashboards.
 observability = [
   "prometheus-client>=0.21.0",
-  "grafanalib>=0.7.1",
 ]
 # OpenTelemetry tracing (opt-in, off by default to keep cold start fast).
 otel = [
@@ -170,7 +171,6 @@ module = [
   "upstash_redis.*",
   "opentelemetry.*",
   "prometheus_client.*",
-  "grafanalib.*",
 ]
 ignore_missing_imports = true
 

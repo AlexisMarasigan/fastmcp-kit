@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from mcp_toolkit import MCPToolkit
 from mcp_toolkit.domains.observability.server import DashboardGenerator
 
@@ -84,27 +82,37 @@ class TestGrafanaRendering:
             assert "mcp_toolkit_tool_invocations_total" in panel.query
 
 
-def test_missing_grafana_extra_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`to_grafana_json` raises a remediation error when grafanalib absent."""
-    import builtins
-    import sys
-
-    from mcp_toolkit.shared.errors import OptionalDependencyMissingError
-
-    real_import = builtins.__import__
-
-    def fake_import(name: str, *args: object, **kwargs: object) -> object:
-        if name.startswith("grafanalib"):
-            raise ImportError("simulated missing grafanalib")
-        return real_import(name, *args, **kwargs)  # type: ignore[arg-type]
-
-    sys.modules.pop("grafanalib", None)
-    sys.modules.pop("grafanalib.core", None)
-    monkeypatch.setattr(builtins, "__import__", fake_import)
-
+def test_rendered_json_has_grafana_11_panel_shape() -> None:
+    """The renderer emits the panel fields Grafana 11 dereferences during
+    load. This was the missing piece when we used grafanalib — its
+    `TimeSeries` output left axis fields as null, crashing the panel.
+    """
     tk = MCPToolkit(name="x")
-    model = DashboardGenerator(tk).generate()[0]
+
+    @tk.tool(group="g", scopes=[])
+    async def ping() -> None:
+        return None
+
     gen = DashboardGenerator(tk)
-    with pytest.raises(OptionalDependencyMissingError) as exc:
-        gen.to_grafana_json(model)
-    assert "[grafana]" in str(exc.value)
+    overview = gen.generate()[0]
+    rendered = gen.to_grafana_json(overview)
+
+    assert rendered["schemaVersion"] >= 39
+    assert rendered["title"] == overview.title
+    assert rendered["uid"] == overview.uid
+
+    for panel in rendered["panels"]:
+        assert panel["type"] == "timeseries"
+        # Grafana 11 reads these during render — null would crash:
+        assert "fieldConfig" in panel
+        assert "defaults" in panel["fieldConfig"]
+        custom = panel["fieldConfig"]["defaults"]["custom"]
+        assert "scaleDistribution" in custom
+        assert custom["scaleDistribution"]["type"] == "linear"
+        assert "gridPos" in panel
+        assert "options" in panel
+        assert "datasource" in panel
+        # Target inherits datasource so explore-from-panel works:
+        for tgt in panel["targets"]:
+            assert "datasource" in tgt
+            assert "refId" in tgt
