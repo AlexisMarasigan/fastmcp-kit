@@ -51,10 +51,7 @@ async def test_full_stack_authenticated_request() -> None:
         return {"secret": "data"}
 
     assert client.get("/private").status_code == 401
-    assert (
-        client.get("/private", headers={"Authorization": f"Bearer {secret}"}).status_code
-        == 200
-    )
+    assert client.get("/private", headers={"Authorization": f"Bearer {secret}"}).status_code == 200
 
 
 @pytest.mark.e2e
