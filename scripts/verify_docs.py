@@ -212,7 +212,10 @@ def check_decision_logs() -> list[Finding]:
 _PATH_PATTERN = re.compile(
     r"`(?P<path>(?:scripts|deploy|src|tests|docs|\.github)/[A-Za-z0-9_./-]+)`"
 )
-_PLACEHOLDER_TOKENS = ("foo", "bar", "baz", "example", "your_", "placeholder")
+# Prose like `scripts/...` is a wildcard reference to a directory, not
+# a real file path. Skip anything containing `..` (covers `...`, `..*`)
+# along with the foo/bar/baz placeholder family.
+_PLACEHOLDER_TOKENS = ("foo", "bar", "baz", "example", "your_", "placeholder", "..")
 
 
 def check_inrepo_references_exist() -> list[Finding]:
