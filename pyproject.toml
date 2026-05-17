@@ -1,7 +1,7 @@
 [project]
-name = "mcp-toolkit"
+name = "fastmcp-kit"
 version = "0.1.0"
-description = "A batteries-included framework for building authenticated, scoped, observable MCP servers. Tool registration, scoped auth keys, Prometheus/Grafana observability, multi-tenancy."
+description = "A batteries-included framework for building authenticated, scoped, observable MCP servers on top of FastMCP. Tool registration, scoped auth keys, Prometheus/Grafana observability, multi-tenancy. (Module: `import mcp_toolkit`.)"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
@@ -68,13 +68,13 @@ otel = [
 mcp-toolkit = "mcp_toolkit.apps.server.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/AlexisMarasigan/mcp-toolkit"
-Documentation = "https://github.com/AlexisMarasigan/mcp-toolkit#readme"
-Source = "https://github.com/AlexisMarasigan/mcp-toolkit"
-Changelog = "https://github.com/AlexisMarasigan/mcp-toolkit/blob/main/CHANGELOG.md"
-Issues = "https://github.com/AlexisMarasigan/mcp-toolkit/issues"
-"Bug reports" = "https://github.com/AlexisMarasigan/mcp-toolkit/issues/new?template=bug_report.md"
-"Security" = "https://github.com/AlexisMarasigan/mcp-toolkit/security/policy"
+Homepage = "https://github.com/AlexisMarasigan/fastmcp-kit"
+Documentation = "https://github.com/AlexisMarasigan/fastmcp-kit#readme"
+Source = "https://github.com/AlexisMarasigan/fastmcp-kit"
+Changelog = "https://github.com/AlexisMarasigan/fastmcp-kit/blob/main/CHANGELOG.md"
+Issues = "https://github.com/AlexisMarasigan/fastmcp-kit/issues"
+"Bug reports" = "https://github.com/AlexisMarasigan/fastmcp-kit/issues/new?template=bug_report.md"
+"Security" = "https://github.com/AlexisMarasigan/fastmcp-kit/security/policy"
 
 [dependency-groups]
 dev = [
