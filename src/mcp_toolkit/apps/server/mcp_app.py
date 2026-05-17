@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from mcp_toolkit.apps.server.scope_filter import scope_filter_middleware
 from mcp_toolkit.domains.auth.server import InMemoryTokenStore, bearer_auth_middleware
 from mcp_toolkit.domains.observability.server import PrometheusRegistry
 from mcp_toolkit.domains.observability.shared import MetricSpec
@@ -143,12 +144,12 @@ def compose_app(toolkit: MCPToolkit) -> FastAPI:
 
     # --- Middleware (registered in reverse-execution order) ---
     # FastAPI runs middleware in LIFO order: the last `app.middleware("http")`
-    # call wraps everything else and runs first. We want auth → tenancy →
-    # handler, so register tenancy first then auth.
-    #
-    # Single-tenant deployments skip the tenancy middleware entirely — the
-    # SingleTenantResolver is zero-cost but skipping it removes one wrap
-    # per request.
+    # call wraps everything else and runs first. Desired execution order:
+    #   request → bearer-auth → tenancy → scope-filter → handler → response
+    # So register: scope-filter, tenancy, auth (auth runs first, wraps all).
+    if settings.scope_filter_enabled:
+        app.middleware("http")(scope_filter_middleware(toolkit))
+
     if settings.tenant_strategy != "single":
         app.middleware("http")(tenancy_middleware(tenant_resolver))
 

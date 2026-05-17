@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     metrics_path: str = "/metrics"
     metrics_enabled: bool = True
 
+    # --- Scope filter ---
+    # Mounts `scope_filter_middleware` after bearer-auth so MCP
+    # `tools/list` responses are pruned to the caller's scopes. Disable
+    # only for downstream apps that have already prepared their own
+    # filter or that intentionally surface the full catalogue.
+    scope_filter_enabled: bool = True
+
     # --- Multi-tenancy ---
     tenant_strategy: TenantStrategy = "single"
 
