@@ -4,10 +4,14 @@ Subcommands:
     stdio              Run the demo toolkit on stdio (for local Claude/etc.).
     http               Run the demo toolkit over HTTP via uvicorn.
     mint-token         Mint a bearer token. Prints the secret once.
+    list-tokens        Dump all known token metadata (no secrets).
+    revoke-token       Revoke a token by token_id.
     gen-dashboards     Walk a toolkit + write Grafana dashboard JSON to disk.
 
-Real deployments will use their own entry point; this CLI is a reference
-and the source of the `mcp-toolkit` console script.
+The token-management commands target the dev-mode `InMemoryTokenStore`;
+real deployments mint tokens from a long-running process holding the
+Upstash store. The CLI is a reference and the source of the
+`mcp-toolkit` console script.
 """
 
 from __future__ import annotations
@@ -56,7 +60,8 @@ def cmd_mint(args: argparse.Namespace) -> int:
     )
     # NOTE: the secret is printed exactly once. The in-memory store loses
     # it on process exit, so this CLI is only useful for dev-mode probes.
-    # Production minting will land on `UpstashTokenStore` in 0.2.x.
+    # Production minting talks to `UpstashTokenStore` from a long-running
+    # process (see docs/AUTH.md once it's written in Sprint 2 follow-up).
     print(
         json.dumps(
             {
@@ -69,6 +74,36 @@ def cmd_mint(args: argparse.Namespace) -> int:
             indent=2,
         )
     )
+    return 0
+
+
+def cmd_list_tokens(_: argparse.Namespace) -> int:
+    """List token metadata. CLI talks to an in-process store, so output is
+    only meaningful during the same process session. Useful for tests + dev.
+    """
+    store = InMemoryTokenStore()
+    rows = [
+        {
+            "token_id": t.token_id,
+            "scopes": sorted(t.scopes),
+            "daily_limit": t.daily_limit,
+            "tenant_id": t.tenant_id,
+            "revoked": t.revoked,
+            "created_at": t.created_at.isoformat(),
+        }
+        for t in store._tokens.values()
+    ]
+    print(json.dumps(rows, indent=2))
+    return 0
+
+
+def cmd_revoke_token(args: argparse.Namespace) -> int:
+    store = InMemoryTokenStore()
+    ok = asyncio.run(store.revoke(args.token_id))
+    if not ok:
+        print(f"token_id {args.token_id!r} not found", file=sys.stderr)
+        return 1
+    print(json.dumps({"token_id": args.token_id, "revoked": True}))
     return 0
 
 
@@ -103,6 +138,13 @@ def build_parser() -> argparse.ArgumentParser:
     mint.add_argument("--daily-limit", type=int, default=1000)
     mint.add_argument("--tenant", default="default")
     mint.set_defaults(func=cmd_mint)
+
+    listt = sub.add_parser("list-tokens", help="List token metadata (dev mode).")
+    listt.set_defaults(func=cmd_list_tokens)
+
+    revoke = sub.add_parser("revoke-token", help="Revoke a token by token_id.")
+    revoke.add_argument("token_id")
+    revoke.set_defaults(func=cmd_revoke_token)
 
     gen = sub.add_parser("gen-dashboards", help="Generate Grafana dashboards for the demo toolkit.")
     gen.add_argument("--out", default="deploy/observability-stack/grafana/dashboards")
