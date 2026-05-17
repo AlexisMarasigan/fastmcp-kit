@@ -28,7 +28,7 @@ from mcp_toolkit.domains.registry.server.toolkit import MCPToolkit
 
 
 def _build_demo_toolkit() -> MCPToolkit:
-    tk = MCPToolkit(name="mcp-toolkit-demo", version="0.1.0.dev0")
+    tk = MCPToolkit(name="mcp-toolkit-demo", version="0.1.0")
 
     @tk.tool(group="demo", scopes=[])
     async def ping() -> dict[str, str]:

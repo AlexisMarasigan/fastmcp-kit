@@ -195,4 +195,23 @@ def compose_app(toolkit: MCPToolkit) -> FastAPI:
     app.state.tenant_resolver = tenant_resolver
     app.state.prometheus = prom
 
+    # OpenTelemetry tracing — opt-in via OTEL_EXPORTER_OTLP_ENDPOINT + the
+    # `[otel]` extra. Auto-instrumentation is intentionally absent: it's a
+    # deploy-time choice, and unwanted spans can leak PII through the
+    # exporter. The env-var gate keeps the cold start fast when off.
+    if settings.otel_exporter_otlp_endpoint:
+        try:
+            from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+            FastAPIInstrumentor.instrument_app(app)
+            _log.info(
+                "server.otel_instrumented",
+                endpoint=settings.otel_exporter_otlp_endpoint,
+            )
+        except ImportError:
+            _log.warning(
+                "server.otel_unavailable",
+                note="install `mcp-toolkit[otel]` to enable tracing",
+            )
+
     return app

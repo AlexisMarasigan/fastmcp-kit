@@ -1,6 +1,6 @@
 [project]
 name = "mcp-toolkit"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "A batteries-included framework for building authenticated, scoped, observable MCP servers. Tool registration, scoped auth keys, Prometheus/Grafana observability, multi-tenancy."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -186,11 +186,10 @@ addopts = [
   "--cov-branch",
   "--cov-report=term-missing",
   "--cov-report=xml",
-  # Sprint-0 scaffold sits at ~22% coverage (domain stubs are untested
-  # until each domain ships its real implementation in sprints 1–4).
-  # 80% is the target gate for 0.1.0 — re-raise in sprint 5 pre-flight,
-  # per docs/ROADMAP.md.
-  "--cov-fail-under=20",
+  # 80% gate restored in Sprint 5 pre-flight per docs/ROADMAP.md.
+  # Was 20% during the sprint-0 scaffold; lifted to 80% once every
+  # domain shipped its test suite (current: 85%+).
+  "--cov-fail-under=80",
   "-m",
   "not integration",
 ]

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from mcp_toolkit.domains.registry.server.toolkit import MCPToolkit
 
-_demo = MCPToolkit(name="mcp-toolkit-demo", version="0.1.0.dev0")
+_demo = MCPToolkit(name="mcp-toolkit-demo", version="0.1.0")
 
 
 @_demo.tool(group="demo", scopes=[])

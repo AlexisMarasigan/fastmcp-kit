@@ -77,7 +77,9 @@ class PrometheusRegistry:
 
         # `_ensure_loaded()` populates `_registry`; the assertion both
         # narrows the type for mypy and pins the invariant for readers.
-        assert self._registry is not None
+        # Bandit B101 false-positive — this is a type-narrowing guard, not
+        # a security check, so it's fine if `python -O` strips it.
+        assert self._registry is not None  # nosec B101
         return (
             prometheus_client.generate_latest(self._registry),
             prometheus_client.CONTENT_TYPE_LATEST,

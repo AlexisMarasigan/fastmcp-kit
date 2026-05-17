@@ -13,6 +13,7 @@ Owns tenant resolution. Decides "which tenant is this caller?" and binds the ans
 | `SubdomainTenantResolver` | First dotted segment of `Host`. |
 | `TokenClaimTenantResolver` | Reads `tenant_id` off the resolved auth token. |
 | `resolve_tenant_strategy(name)` | Factory. Looks up by `TENANT_STRATEGY` setting. |
+| `tenancy_middleware(resolver)` | FastAPI middleware factory. Resolves per request, binds `tenant_id` to contextvars + `request.state.tenant`, returns 400 on failure. |
 
 ## Strategy selection
 
