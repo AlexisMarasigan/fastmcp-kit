@@ -75,9 +75,13 @@ class PrometheusRegistry:
         self._ensure_loaded()
         import prometheus_client
 
-        return prometheus_client.generate_latest(
-            self._registry
-        ), prometheus_client.CONTENT_TYPE_LATEST
+        # `_ensure_loaded()` populates `_registry`; the assertion both
+        # narrows the type for mypy and pins the invariant for readers.
+        assert self._registry is not None
+        return (
+            prometheus_client.generate_latest(self._registry),
+            prometheus_client.CONTENT_TYPE_LATEST,
+        )
 
     def collector(self, name: str) -> Any:
         """Return the concrete `prometheus_client` collector for a metric name."""

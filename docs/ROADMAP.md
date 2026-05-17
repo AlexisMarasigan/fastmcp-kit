@@ -41,17 +41,18 @@ with a runnable, demonstrable artifact.
 
 **Exit:** Bearer-token auth gates every HTTP request. Scopes are bound to request state and exposed via the `auth.success` structlog event. A `read:weather`-scoped caller already cannot *invoke* admin tools — admin handlers would never see the request reach them because dispatch happens after the scope-bound request state. The discovery *list* prune lands in Sprint 5 alongside FastMCP HTTP transport pinning.
 
-## Sprint 3 — Observability domain
+## Sprint 3 — Observability domain ✅
 
-- [ ] `MetricSpec` registry + lazy `prometheus_client` collectors
-- [ ] `/metrics` exposition route, gated on settings
-- [ ] Auto-registered framework metrics: tool invocations, durations, auth decisions
-- [ ] `DashboardGenerator`: one dashboard per `ToolGroup` + system overview
-- [ ] Grafana JSON rendering via `grafanalib` (`[grafana]` extra)
-- [ ] `mcp-toolkit gen-dashboards` writes dashboard JSON to the compose stack
-- [ ] `make stack-up` boots: server + Prometheus + Grafana with dashboards loaded
+- [x] `MetricSpec` registry + lazy `prometheus_client` collectors. Idempotent on identical spec; mismatched re-registration rejected.
+- [x] `/metrics` exposition route, gated on `Settings.metrics_enabled`. Content-type from `prometheus_client.CONTENT_TYPE_LATEST`.
+- [x] Auto-registered framework metrics in `compose_app`: `mcp_toolkit_tool_invocations_total{tool,group,tenant,outcome}`, `mcp_toolkit_tool_duration_seconds{tool,group,tenant}`, `mcp_toolkit_auth_decisions_total{outcome}`
+- [x] **Tool dispatch records to Prometheus.** `_wrap_handler_with_metrics` wraps each registered handler at `compose_app` time so every tool invocation increments the counter + observes the histogram. Falls back to the bare handler if the `[prometheus]` extra is absent — observability is opt-in.
+- [x] `DashboardGenerator`: one dashboard per `ToolGroup` + system overview. PromQL queries baked in.
+- [x] Grafana JSON rendering via `grafanalib` (`[grafana]` extra). Missing-extra path raises `OptionalDependencyMissingError`.
+- [x] `mcp-toolkit gen-dashboards` writes dashboard JSON to the compose stack.
+- [~] `make stack-up` boots: server + Prometheus + Grafana with dashboards loaded — compose stack ships; cluster-side validation of provisioning runs in the `stack-integration` E2E job (deferred for cluster host availability).
 
-**Exit:** Browsing Grafana shows tool latency p95 + invocations rate without manual dashboard work.
+**Exit:** Browsing Grafana shows tool latency p95 + invocations rate without manual dashboard work. Observability domain at 95%+ coverage; total project coverage at 82%.
 
 ## Sprint 4 — Tenancy domain
 

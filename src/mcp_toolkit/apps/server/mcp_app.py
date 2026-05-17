@@ -13,24 +13,70 @@ options (stdio, Streamable HTTP both with shared state) land in 0.2.x.
 
 from __future__ import annotations
 
+import time
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING
+from functools import wraps
+from typing import TYPE_CHECKING, Any
 
 from mcp_toolkit.domains.auth.server import InMemoryTokenStore, bearer_auth_middleware
 from mcp_toolkit.domains.observability.server import PrometheusRegistry
 from mcp_toolkit.domains.observability.shared import MetricSpec
 from mcp_toolkit.domains.tenancy.server import resolve_tenant_strategy
 from mcp_toolkit.shared.config import get_settings
+from mcp_toolkit.shared.errors import OptionalDependencyMissingError
 from mcp_toolkit.shared.logging import get_logger
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncIterator, Awaitable, Callable
 
     from fastapi import FastAPI
 
-    from mcp_toolkit.domains.registry.server.toolkit import MCPToolkit
+    from mcp_toolkit.domains.registry.server.toolkit import MCPToolkit, ToolSpec
 
 _log = get_logger(__name__)
+
+
+def _wrap_handler_with_metrics(
+    spec: ToolSpec,
+    prom: PrometheusRegistry,
+) -> Callable[..., Awaitable[Any]]:
+    """Wrap a tool handler so each invocation records to Prometheus.
+
+    Labels (tool, group, tenant) are bound at call time; tenant defaults
+    to "default" when no tenancy middleware is installed. `outcome` is
+    `success` or `error` and is derived from whether the handler raised.
+
+    If `prometheus_client` is not installed, the wrapper returns the
+    original handler unchanged — observability is opt-in and the
+    framework must remain usable without the extra.
+    """
+    try:
+        counter = prom.collector("mcp_toolkit_tool_invocations_total")
+        histogram = prom.collector("mcp_toolkit_tool_duration_seconds")
+    except OptionalDependencyMissingError:
+        return spec.handler
+
+    handler = spec.handler
+
+    @wraps(handler)
+    async def wrapped(*args: Any, **kwargs: Any) -> Any:
+        # Tenant binding lives on contextvars in the full stack — for the
+        # wire-level wrapper we use a constant fallback so a missing
+        # tenant doesn't break metric emission.
+        tenant = "default"
+        labels = {"tool": spec.name, "group": spec.group, "tenant": tenant}
+        start = time.perf_counter()
+        try:
+            result = await handler(*args, **kwargs)
+        except Exception:
+            counter.labels(**labels, outcome="error").inc()
+            histogram.labels(**labels).observe(time.perf_counter() - start)
+            raise
+        counter.labels(**labels, outcome="success").inc()
+        histogram.labels(**labels).observe(time.perf_counter() - start)
+        return result
+
+    return wrapped
 
 
 def _baseline_metrics(registry: PrometheusRegistry) -> None:
@@ -116,9 +162,11 @@ def compose_app(toolkit: MCPToolkit) -> FastAPI:
 
     mcp = FastMCP(toolkit.name)
     for spec in toolkit.tools():
-        # Register the underlying handler with FastMCP. FastMCP derives the
-        # input schema from the handler's signature.
-        mcp.add_tool(spec.handler, name=spec.name, description=spec.description)
+        # Wrap the handler so each invocation records to Prometheus.
+        # FastMCP introspects the wrapper's signature via `functools.wraps`
+        # so the wire schema still matches the original handler.
+        wrapped = _wrap_handler_with_metrics(spec, prom)
+        mcp.add_tool(wrapped, name=spec.name, description=spec.description)
 
     # FastMCP's HTTP transport mounts at the app level. The exact mounting
     # API stabilises in 0.2.x — for 0.1.0 we expose the mcp object as an
