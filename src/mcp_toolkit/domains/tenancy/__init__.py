@@ -8,6 +8,7 @@ from mcp_toolkit.domains.tenancy.server import (
     SubdomainTenantResolver,
     TokenClaimTenantResolver,
     resolve_tenant_strategy,
+    tenancy_middleware,
 )
 from mcp_toolkit.domains.tenancy.shared import Tenant, TenantResolver
 
@@ -19,4 +20,5 @@ __all__ = [
     "TenantResolver",
     "TokenClaimTenantResolver",
     "resolve_tenant_strategy",
+    "tenancy_middleware",
 ]

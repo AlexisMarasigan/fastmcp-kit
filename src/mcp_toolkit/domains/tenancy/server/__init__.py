@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mcp_toolkit.domains.tenancy.server.middleware import tenancy_middleware
 from mcp_toolkit.domains.tenancy.server.resolvers import (
     HeaderTenantResolver,
     SingleTenantResolver,
@@ -16,4 +17,5 @@ __all__ = [
     "SubdomainTenantResolver",
     "TokenClaimTenantResolver",
     "resolve_tenant_strategy",
+    "tenancy_middleware",
 ]

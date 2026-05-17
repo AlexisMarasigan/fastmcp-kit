@@ -18,10 +18,15 @@ from contextlib import asynccontextmanager
 from functools import wraps
 from typing import TYPE_CHECKING, Any
 
+import structlog
+
 from mcp_toolkit.domains.auth.server import InMemoryTokenStore, bearer_auth_middleware
 from mcp_toolkit.domains.observability.server import PrometheusRegistry
 from mcp_toolkit.domains.observability.shared import MetricSpec
-from mcp_toolkit.domains.tenancy.server import resolve_tenant_strategy
+from mcp_toolkit.domains.tenancy.server import (
+    resolve_tenant_strategy,
+    tenancy_middleware,
+)
 from mcp_toolkit.shared.config import get_settings
 from mcp_toolkit.shared.errors import OptionalDependencyMissingError
 from mcp_toolkit.shared.logging import get_logger
@@ -60,10 +65,13 @@ def _wrap_handler_with_metrics(
 
     @wraps(handler)
     async def wrapped(*args: Any, **kwargs: Any) -> Any:
-        # Tenant binding lives on contextvars in the full stack — for the
-        # wire-level wrapper we use a constant fallback so a missing
-        # tenant doesn't break metric emission.
-        tenant = "default"
+        # Tenant is bound by the tenancy middleware into structlog
+        # contextvars. Read it back here so per-tenant metric labels work
+        # without threading state through the handler signature. Falls
+        # back to "default" when no tenancy middleware is installed
+        # (single-tenant deployments).
+        ctx = structlog.contextvars.get_contextvars()
+        tenant = ctx.get("tenant_id", "default")
         labels = {"tool": spec.name, "group": spec.group, "tenant": tenant}
         start = time.perf_counter()
         try:
@@ -134,6 +142,16 @@ def compose_app(toolkit: MCPToolkit) -> FastAPI:
     )
 
     # --- Middleware (registered in reverse-execution order) ---
+    # FastAPI runs middleware in LIFO order: the last `app.middleware("http")`
+    # call wraps everything else and runs first. We want auth → tenancy →
+    # handler, so register tenancy first then auth.
+    #
+    # Single-tenant deployments skip the tenancy middleware entirely — the
+    # SingleTenantResolver is zero-cost but skipping it removes one wrap
+    # per request.
+    if settings.tenant_strategy != "single":
+        app.middleware("http")(tenancy_middleware(tenant_resolver))
+
     app.middleware("http")(
         bearer_auth_middleware(token_store, disabled=settings.mcptk_auth_disabled)
     )

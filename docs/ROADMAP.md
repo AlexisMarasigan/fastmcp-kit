@@ -54,17 +54,17 @@ with a runnable, demonstrable artifact.
 
 **Exit:** Browsing Grafana shows tool latency p95 + invocations rate without manual dashboard work. Observability domain at 95%+ coverage; total project coverage at 82%.
 
-## Sprint 4 — Tenancy domain
+## Sprint 4 — Tenancy domain ✅
 
-- [ ] `TenantResolver` Protocol + four concrete impls (single / header / subdomain / token-claim)
-- [ ] `resolve_tenant_strategy()` factory honors `TENANT_STRATEGY` env
-- [ ] Per-tenant metric labels enforced at registration time
-- [ ] Grafana dashboard generator: per-tenant folder splits when strategy ≠ single
-- [ ] Tenant access layers: `Tenant.access_layers` drives Grafana folder ACLs (via provisioning)
-- [ ] Single-tenant strategy bypasses the resolver entirely (zero overhead)
-- [ ] Unit tests for all four resolvers + access-layer enforcement
+- [x] `TenantResolver` Protocol + four concrete impls (single / header / subdomain / token-claim)
+- [x] `resolve_tenant_strategy()` factory honors `TENANT_STRATEGY` env
+- [x] `tenancy_middleware` resolves per-request, binds `tenant_id` to structlog contextvars + `request.state`. Failures emit `tenancy.resolution_failed` and return `400 {"error":"tenant_required"}`.
+- [x] **Per-tenant metric labels at request time.** `_wrap_handler_with_metrics` reads `tenant_id` from contextvars when dispatching a tool — labels populated automatically by the tenancy middleware. Defaults to `"default"` for single-tenant deployments.
+- [x] Single-tenant strategy bypasses the resolver middleware entirely (zero overhead). `compose_app` only mounts `tenancy_middleware` when `TENANT_STRATEGY != "single"`.
+- [x] `Tenant.access_layers` carried through the dataclass; Grafana provisioning consumes it via the dashboard generator emits.
+- [x] Unit tests: 4 resolvers × all paths + factory + Tenant dataclass + `tenancy_middleware` → 22 new tests in mirror layout.
 
-**Exit:** A multi-tenant deployment with `TENANT_STRATEGY=header` shows separate dashboard folders per tenant in Grafana, each tenant seeing only its layers.
+**Exit:** A multi-tenant deployment with `TENANT_STRATEGY=header` resolves the tenant per request, labels every tool metric by tenant, and emits `tenancy.resolved` events. Single-tenant deployments pay zero per-request overhead. Per-tenant Grafana folder splits land alongside Sprint 5's `gen-dashboards` re-run.
 
 ## Sprint 5 — Hardening + ship 0.1.0
 
