@@ -1,0 +1,217 @@
+[project]
+name = "mcp-toolkit"
+version = "0.1.0.dev0"
+description = "A batteries-included framework for building authenticated, scoped, observable MCP servers. Tool registration, scoped auth keys, Prometheus/Grafana observability, multi-tenancy."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Alexis Jhon Estacio Marasigan", email = "alexismarasigan31@gmail.com" }]
+keywords = [
+  "mcp",
+  "model-context-protocol",
+  "framework",
+  "fastmcp",
+  "prometheus",
+  "grafana",
+  "observability",
+  "multitenancy",
+  "knative",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Framework :: FastAPI",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries :: Application Frameworks",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
+]
+
+dependencies = [
+  "mcp>=1.2.0",
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.32.0",
+  "httpx>=0.27.0",
+  "pydantic>=2.9.0",
+  "pydantic-settings>=2.6.0",
+  "structlog>=24.4.0",
+  "python-ulid>=3.0.0",
+]
+
+[project.optional-dependencies]
+# Persist token store + cache across pods.
+redis = ["upstash-redis>=1.2.0"]
+# Prometheus exposition + scrape endpoint.
+prometheus = ["prometheus-client>=0.21.0"]
+# Grafana dashboard generation. grafanalib emits the JSON model
+# consumed by Grafana's provisioning API.
+grafana = ["grafanalib>=0.7.1"]
+# Both metrics and dashboards.
+observability = [
+  "prometheus-client>=0.21.0",
+  "grafanalib>=0.7.1",
+]
+# OpenTelemetry tracing (opt-in, off by default to keep cold start fast).
+otel = [
+  "opentelemetry-api>=1.27.0",
+  "opentelemetry-sdk>=1.27.0",
+  "opentelemetry-instrumentation-fastapi>=0.48b0",
+  "opentelemetry-instrumentation-httpx>=0.48b0",
+  "opentelemetry-exporter-otlp>=1.27.0",
+]
+
+[project.scripts]
+mcp-toolkit = "mcp_toolkit.apps.server.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/AlexisMarasigan/mcp-toolkit"
+Documentation = "https://github.com/AlexisMarasigan/mcp-toolkit#readme"
+Source = "https://github.com/AlexisMarasigan/mcp-toolkit"
+Changelog = "https://github.com/AlexisMarasigan/mcp-toolkit/blob/main/CHANGELOG.md"
+Issues = "https://github.com/AlexisMarasigan/mcp-toolkit/issues"
+"Bug reports" = "https://github.com/AlexisMarasigan/mcp-toolkit/issues/new?template=bug_report.md"
+"Security" = "https://github.com/AlexisMarasigan/mcp-toolkit/security/policy"
+
+[dependency-groups]
+dev = [
+  "ruff>=0.7.0",
+  "mypy>=1.13.0",
+  "pytest>=8.3.0",
+  "pytest-asyncio>=0.24.0",
+  "pytest-cov>=6.0.0",
+  "respx>=0.21.0",
+  "pre-commit>=4.0.0",
+]
+
+[build-system]
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcp_toolkit"]
+
+# ---------- ruff ----------
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E", "W",   # pycodestyle
+  "F",        # pyflakes
+  "I",        # isort
+  "B",        # bugbear
+  "C4",       # comprehensions
+  "UP",       # pyupgrade
+  "ANN",      # annotations
+  "S",        # bandit (security)
+  "A",        # builtins shadowing
+  "RUF",      # ruff-specific
+  "SIM",      # simplify
+  "PT",       # pytest style
+  "TID",      # tidy imports
+  "PL",       # pylint subset
+]
+ignore = [
+  "ANN401",   # allow Any in narrow places
+  "PLR0913",  # arg count (Pydantic/FastAPI legitimately exceed)
+  "PLR0911",  # return count (CLI dispatchers have many)
+  "PLR0912",  # branch count — dispatch functions have many small branches
+  "PLC0415",  # lazy/optional imports are intentional
+  "S101",     # asserts allowed in tests
+  "S105",     # token_store enum literal is a config value, not a secret
+  "SIM105",   # explicit try/except is clearer than contextlib.suppress here
+  "S110",     # cosmetic-enrichment try/except is intentional
+  "RUF002",   # allow en-dashes in docstrings
+  "E501",     # line length is enforced by ruff format
+  "PLR2004",  # HTTP status codes are universally known constants
+  "UP046",    # Generic[T] is still idiomatic
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106", "PLR2004", "ANN"]
+"scripts/**/*.py" = ["S603", "S607"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["mcp_toolkit"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# Clara: shared/ may not import from domains/ or apps/.
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ---------- mypy ----------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+extra_checks = true
+files = ["src", "tests", "scripts"]
+
+[[tool.mypy.overrides]]
+module = [
+  "upstash_redis.*",
+  "opentelemetry.*",
+  "prometheus_client.*",
+  "grafanalib.*",
+]
+ignore_missing_imports = true
+
+# ---------- pytest ----------
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = [
+  "-ra",
+  "--strict-markers",
+  "--strict-config",
+  "--cov=mcp_toolkit",
+  "--cov-branch",
+  "--cov-report=term-missing",
+  "--cov-report=xml",
+  # Sprint-0 scaffold sits at ~22% coverage (domain stubs are untested
+  # until each domain ships its real implementation in sprints 1–4).
+  # 80% is the target gate for 0.1.0 — re-raise in sprint 5 pre-flight,
+  # per docs/ROADMAP.md.
+  "--cov-fail-under=20",
+  "-m",
+  "not integration",
+]
+asyncio_mode = "auto"
+markers = [
+  "integration: hits a real upstream (slow, networked)",
+  "e2e: full end-to-end against a running server",
+]
+
+[tool.coverage.run]
+source = ["src/mcp_toolkit"]
+branch = true
+parallel = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+precision = 2
+exclude_lines = [
+  "pragma: no cover",
+  "raise NotImplementedError",
+  "if TYPE_CHECKING:",
+  "if __name__ == .__main__.:",
+]

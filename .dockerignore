@@ -1,0 +1,53 @@
+# Build context exclusions. Keep tight — every megabyte slows layer
+# caching and bloats the cache key's collision surface.
+
+# Python build/cache trees.
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+build/
+dist/
+
+# Tooling caches.
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Source-control + editor cruft.
+.git/
+.gitignore
+.gitleaks.toml
+.github/
+.vscode/
+.idea/
+.DS_Store
+
+# Project artefacts not needed at build time. README.md stays —
+# hatchling reads it for project metadata at install time.
+docs/
+tests/
+scripts/
+deploy/
+.claude/
+.pre-commit-config.yaml
+.env
+.env.local
+.env.example
+CONTRIBUTING.md
+CHANGELOG.md
+SECURITY.md
+ARCHITECTURE.md
+CLAUDE.md
+LICENSE
+
+# Knative / docker scratch.
+.func/
+Dockerfile*
+!deploy/Dockerfile

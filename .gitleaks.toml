@@ -1,0 +1,6 @@
+# Gitleaks config — supplements the default ruleset.
+[allowlist]
+description = "Generic allowlist for test fixtures"
+paths = [
+  '''tests/.*/fixtures/.*''',
+]

@@ -1,0 +1,83 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"  # weekly Monday 06:00 UTC
+
+permissions:
+  contents: read
+  security-events: write
+  # `actions: read` is required by github/codeql-action/analyze@v3 on
+  # private repos: the action attaches the SARIF upload to the workflow
+  # run, and that endpoint rejects the default GITHUB_TOKEN unless the
+  # workflow declares it.
+  actions: read
+
+jobs:
+  bandit:
+    name: bandit (static analysis)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - name: Bandit (all severities — `# nosec BXXX` annotations carry the rationale)
+        run: uvx bandit -r src/ scripts/ --severity-level low --confidence-level low
+
+  pip-audit:
+    name: pip-audit (deps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --frozen --group dev
+      - name: Export requirements (deps only, drop editable + comments)
+        run: |
+          uv export --frozen --no-dev --format requirements-txt \
+            | grep -v '^-e\|^# ' > requirements.txt
+      - name: pip-audit
+        uses: pypa/gh-action-pip-audit@v1.0.8
+        with:
+          inputs: requirements.txt
+
+  gitleaks:
+    name: gitleaks (secrets)
+    runs-on: ubuntu-latest
+    # Job-level permission grant: gitleaks-action posts a summary comment
+    # back to the PR when it finds something. Scoped here (not at the
+    # workflow level) so bandit / pip-audit / codeql don't inherit write
+    # access to PRs they have no business mutating.
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          # gitleaks-action@v2 requires GITHUB_TOKEN to scan PRs since
+          # its breaking change. Without it the PR scan exits with
+          # "GITHUB_TOKEN is now required".
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          config-file: ./.github/codeql/config.yml
+      - uses: github/codeql-action/analyze@v3

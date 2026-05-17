@@ -1,0 +1,71 @@
+name: E2E
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 4 * * *"  # nightly 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  e2e:
+    name: End-to-end suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --frozen --group dev --extra observability
+      - name: Run E2E (writes docs/E2E-REPORT.md)
+        run: uv run pytest tests/e2e -m e2e --no-cov
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: docs/E2E-REPORT.md
+          if-no-files-found: warn
+      - name: Comment PR with E2E summary
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          path: docs/E2E-REPORT.md
+
+  stack-integration:
+    name: Observability stack (compose-up smoke)
+    # The compose stack adds ~2 min; only run on schedule + manual dispatch
+    # so PR feedback stays fast.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --frozen --group dev --extra observability
+      - name: Bring up observability stack
+        run: |
+          cd deploy/observability-stack
+          docker compose up -d --wait
+      - name: Run integration tests against running stack
+        run: uv run pytest tests/integration -m integration --no-cov -v
+      - name: Compose logs on failure
+        if: failure()
+        run: |
+          cd deploy/observability-stack
+          docker compose logs --no-color
+      - name: Tear down
+        if: always()
+        run: |
+          cd deploy/observability-stack
+          docker compose down -v

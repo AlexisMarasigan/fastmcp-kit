@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.1.0). Must already exist on origin."
+        required: true
+        type: string
+
+permissions:
+  contents: write  # to create the GitHub Release
+
+jobs:
+  gates:
+    name: Pre-release gates (lint + type + tests + security)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --frozen --group dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run pytest tests/unit
+      - run: uv run python scripts/verify_docs.py
+      - name: Bandit (zero findings — exceptions carry `# nosec BXXX` rationale)
+        run: uvx bandit -r src/ scripts/ --severity-level low --confidence-level low
+
+  build-and-release:
+    name: Build wheel + GitHub Release
+    needs: gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # auto-generated release notes need full history
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - run: uv python install 3.12
+
+      - name: Verify tag matches pyproject version
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          PYPROJECT_VERSION=$(uv run python -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          EXPECTED="v${PYPROJECT_VERSION}"
+          if [ "$TAG" != "$EXPECTED" ]; then
+            echo "Tag '$TAG' does not match pyproject version '$EXPECTED'" >&2
+            exit 1
+          fi
+
+      - name: Build sdist + wheel
+        run: uv build
+
+      - name: Validate wheel + sdist metadata (twine check)
+        run: uvx twine check --strict dist/*
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum *.whl *.tar.gz > SHA256SUMS
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/SHA256SUMS
+
+  publish-pypi:
+    name: Publish to PyPI (Trusted Publishing)
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    # PyPI Trusted Publishing requires an `id-token: write` permission so
+    # the action can mint an OIDC token. No PyPI API token stored.
+    permissions:
+      id-token: write
+    environment:
+      name: pypi
+      url: https://pypi.org/p/mcp-toolkit
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: astral-sh/setup-uv@v3
+      - run: uv python install 3.12
+      - run: uv build
+      - uses: pypa/gh-action-pypi-publish@release/v1

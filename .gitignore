@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+dist/
+build/
+*.so
+
+# uv
+.uv/
+uv.lock.lock
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# mypy / ruff
+.mypy_cache/
+.ruff_cache/
+
+# Env
+.env
+.env.local
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Generated artifacts
+requirements.txt
+
+# Knative / Docker buildpack scratch
+.func/
+
+# Observability stack runtime data (Prometheus TSDB, Grafana SQLite)
+deploy/observability-stack/data/
+deploy/observability-stack/grafana-data/
+deploy/observability-stack/prometheus-data/
+
+# Local-only Claude state (skills under .claude/skills/ are committed)
+.claude/homunculus/
+.claude/settings.local.json
+
+# Conventional local-only files. *.local.* = ephemeral state that should
+# never ship in sdists / wheels or get committed.
+*.local.*

@@ -1,0 +1,17 @@
+# Default owner — everything routes here unless overridden below.
+*                                       @AlexisMarasigan
+
+# Domain owners. Update when subteams form.
+/src/mcp_toolkit/domains/registry/      @AlexisMarasigan
+/src/mcp_toolkit/domains/auth/          @AlexisMarasigan
+/src/mcp_toolkit/domains/observability/ @AlexisMarasigan
+/src/mcp_toolkit/domains/tenancy/       @AlexisMarasigan
+
+# Cross-cutting infrastructure.
+/src/mcp_toolkit/shared/                @AlexisMarasigan
+/src/mcp_toolkit/apps/                  @AlexisMarasigan
+
+# CI, security, and deploy.
+/.github/workflows/                     @AlexisMarasigan
+/SECURITY.md                            @AlexisMarasigan
+/deploy/                                @AlexisMarasigan

@@ -1,0 +1,60 @@
+# One-click observability stack. `make stack-up` from the repo root.
+#
+# Brings up the MCP server, Prometheus (scraping /metrics), and Grafana
+# (with auto-provisioned dashboards generated from the toolkit registry).
+
+services:
+  mcp-toolkit:
+    build:
+      context: ../..
+      dockerfile: deploy/Dockerfile
+    image: mcp-toolkit:local
+    container_name: mcp-toolkit
+    environment:
+      MCPTK_AUTH_DISABLED: "1"   # dev-only; never set in production
+      METRICS_ENABLED: "1"
+      METRICS_PATH: "/metrics"
+      LOG_LEVEL: info
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    container_name: mcp-toolkit-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      mcp-toolkit:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: mcp-toolkit-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin   # dev-only
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus-data:
+  grafana-data:

@@ -1,0 +1,8 @@
+name: mcp-toolkit CodeQL config
+
+# Test files aren't security boundaries: list-membership and prefix-check
+# assertions get over-flagged by `py/incomplete-url-substring-sanitization`.
+# Scanning test code trades real signal for noise. Production code under
+# `src/` and operational scripts under `scripts/` stay in scope.
+paths-ignore:
+  - 'tests/**'

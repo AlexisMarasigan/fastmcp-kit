@@ -1,0 +1,29 @@
+# Changelog
+
+All notable changes to this project are documented here. Format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- Repository scaffold, harness, and Clara-style docs ported from `db2st-mcp`.
+- Domain stubs: `registry`, `auth`, `observability`, `tenancy`.
+- `pyproject.toml` with optional extras: `redis`, `prometheus`, `grafana`, `observability`, `otel`.
+- CI workflows: lint, typecheck, test matrix (py3.12 + py3.13), security
+  (bandit, pip-audit, gitleaks, CodeQL), e2e nightly, release pipeline.
+- Pre-commit hooks (ruff, gitleaks, commitizen).
+- One-click observability stack scaffold (`deploy/observability-stack/`).
+
+## [0.1.0] — TBD
+
+First publishable cut. See [docs/ROADMAP.md](docs/ROADMAP.md) for the full
+sprint plan. Target surface:
+
+- `MCPToolkit` object with `@tool(group=..., scopes=[...])` decorator API.
+- Bearer-token auth with per-token scope sets gating tool discovery.
+- Prometheus metric registration API + `/metrics` exposition.
+- Grafana dashboard generator (walks registry, emits JSON model).
+- One-click `docker compose` stack: MCP server + Prometheus + Grafana
+  with auto-provisioned dashboards.
+- Multi-tenancy with pluggable resolvers (header / subdomain / token-claim).
