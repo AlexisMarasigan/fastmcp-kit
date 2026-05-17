@@ -1,0 +1,17 @@
+apiVersion: v2
+name: mcp-toolkit
+description: A framework for building authenticated, scoped, observable MCP servers
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/AlexisMarasigan/mcp-toolkit
+sources:
+  - https://github.com/AlexisMarasigan/mcp-toolkit
+keywords:
+  - mcp
+  - model-context-protocol
+  - framework
+  - observability
+maintainers:
+  - name: Alexis Jhon Estacio Marasigan
+    email: alexismarasigan31@gmail.com

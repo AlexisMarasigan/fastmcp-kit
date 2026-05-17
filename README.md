@@ -62,6 +62,16 @@ open http://localhost:3000  # Grafana, dashboards already populated
 
 See [deploy/observability-stack/README.md](deploy/observability-stack/README.md).
 
+## Deploy
+
+Three deployment surfaces ship in this repo:
+
+| Target | Manifest | When |
+|---|---|---|
+| Knative | [`deploy/knative-serving.yaml`](deploy/knative-serving.yaml) | You already run Knative Serving. |
+| Vanilla k8s (Helm) | [`deploy/helm/mcp-toolkit/`](deploy/helm/mcp-toolkit/README.md) | You run k8s without Knative. |
+| Local dev | [`deploy/observability-stack/`](deploy/observability-stack/README.md) | docker compose, Prometheus + Grafana included. |
+
 ## Documentation
 
 | Topic | Where |

@@ -1,0 +1,105 @@
+# Default values for mcp-toolkit.
+# This file's defaults map to a single-tenant deployment with HTTP
+# transport, the Upstash token store, and Prometheus exposition on the
+# same port as the MCP transport.
+
+image:
+  repository: ghcr.io/alexismarasigan/mcp-toolkit
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+replicaCount: 2
+
+# Service shape. ClusterIP is the sensible default; users put their own
+# Ingress or LoadBalancer in front per their cluster's pattern.
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+# Pod-level resources. Defaults are conservative; tune for real load
+# after the first Prometheus scrape histograms come in.
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+# Configurable env. The framework reads these via pydantic-settings —
+# see `src/mcp_toolkit/shared/config.py` for the full surface.
+env:
+  PORT: "8080"
+  LOG_LEVEL: "info"
+  SERVER_NAME: "mcp-toolkit"
+  MCP_ALLOWED_HOSTS: ""        # comma-separated extra Host header values
+  TOKEN_STORE: "upstash"        # "memory" for dev, "upstash" for prod
+  METRICS_ENABLED: "1"
+  METRICS_PATH: "/metrics"
+  TENANT_STRATEGY: "single"     # single | header | subdomain | token
+  # Set if you've installed `mcp-toolkit[otel]` and want OTLP export.
+  OTEL_EXPORTER_OTLP_ENDPOINT: ""
+
+# Upstash credentials live in a Secret you provision. The chart only
+# references it — never holds raw values.
+upstashSecret:
+  # Set to your existing secret's name. The chart expects two keys:
+  # `upstash-url` and `upstash-token`. Leave empty to skip the env
+  # bindings (e.g. when TOKEN_STORE=memory).
+  name: ""
+  urlKey: "upstash-url"
+  tokenKey: "upstash-token"
+
+# Liveness / readiness probes. /healthz is provided by the framework
+# (apps/server/mcp_app.py) and stays public so the kubelet can hit it.
+probes:
+  liveness:
+    path: /healthz
+    initialDelaySeconds: 5
+    periodSeconds: 30
+  readiness:
+    path: /healthz
+    initialDelaySeconds: 2
+    periodSeconds: 10
+
+# Pod / container security context. Non-root by default to clear most
+# Pod Security Admission baselines.
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  seccompProfile:
+    type: RuntimeDefault
+
+podAnnotations: {}
+podLabels: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Prometheus operator integration. When enabled, the chart emits a
+# `ServiceMonitor` resource that points the operator at the /metrics
+# route. Disabled by default — not every cluster runs the operator.
+serviceMonitor:
+  enabled: false
+  # Interval defaults to operator's default if unset.
+  interval: ""
+  scrapeTimeout: ""
+  # Pod labels the ServiceMonitor selects on.
+  labels: {}
+
+# Horizontal Pod Autoscaler. Disabled by default; replicaCount above is
+# the static fallback. When enabled, replicaCount is ignored.
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70

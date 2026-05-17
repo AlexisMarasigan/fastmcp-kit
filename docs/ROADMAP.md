@@ -80,7 +80,8 @@ with a runnable, demonstrable artifact.
 
 ## Stretch (post-0.1.0)
 
-- **stdio transport with shared state.** 0.1.0 wires HTTP via FastMCP; stdio is a stub. The challenge is sharing the token store + metrics registry between stdio invocations and a sidecar HTTP scrape endpoint.
+- ~~**stdio transport.**~~ ✅ Landed post-0.1.0 (commit f42fa8c). `mcp-toolkit stdio` bridges to FastMCP's stdio runner. Sharing state with a sidecar HTTP scrape endpoint remains a future item if anyone hits it.
+- ~~**Helm chart.**~~ ✅ Landed post-0.1.0. `deploy/helm/mcp-toolkit/` covers vanilla k8s consumers who don't run Knative.
 - **Second metric backend** (StatsD or OTLP metrics) behind the same `MetricSpec` API.
 - **GraphQL introspection-style** tool catalogue endpoint for clients that prefer querying over MCP `list_tools`.
 - **Helm chart** alongside the Knative manifest.
