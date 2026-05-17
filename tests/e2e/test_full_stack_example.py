@@ -34,18 +34,27 @@ async def test_full_stack_authenticated_request() -> None:
     store = app.state.token_store
     _, secret = await store.mint(scopes=frozenset({"read:weather"}), daily_limit=10)
 
-    # --- /healthz is gated by auth ---
-    unauth = client.get("/healthz")
-    assert unauth.status_code == 401
+    # --- /healthz is auth-exempt by default so kubelet probes succeed ---
+    probe = client.get("/healthz")
+    assert probe.status_code == 200
+    assert probe.json()["server"] == "example"
 
-    # --- /healthz with a bearer token ---
-    auth = client.get("/healthz", headers={"Authorization": f"Bearer {secret}"})
-    assert auth.status_code == 200
-    assert auth.json()["server"] == "example"
+    # --- /metrics is auth-exempt for Prometheus scrape ---
+    metrics = client.get("/metrics")
+    assert metrics.status_code == 200
 
-    # --- /metrics also gated ---
-    metrics_unauth = client.get("/metrics")
-    assert metrics_unauth.status_code == 401
+    # --- A non-exempt route still requires the bearer token ---
+    # Add a route the framework didn't create so we can probe non-exempt
+    # behavior without relying on FastMCP HTTP mount (deferred to 0.2.x).
+    @app.get("/private")
+    async def private() -> dict[str, str]:
+        return {"secret": "data"}
+
+    assert client.get("/private").status_code == 401
+    assert (
+        client.get("/private", headers={"Authorization": f"Bearer {secret}"}).status_code
+        == 200
+    )
 
 
 @pytest.mark.e2e

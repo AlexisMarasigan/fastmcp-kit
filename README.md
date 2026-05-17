@@ -1,16 +1,16 @@
-# mcp-toolkit
+# fastmcp-kit
 
-[![CI](https://github.com/AlexisMarasigan/mcp-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexisMarasigan/mcp-toolkit/actions/workflows/ci.yml)
-[![Security](https://github.com/AlexisMarasigan/mcp-toolkit/actions/workflows/security.yml/badge.svg)](https://github.com/AlexisMarasigan/mcp-toolkit/actions/workflows/security.yml)
-[![PyPI](https://img.shields.io/pypi/v/mcp-toolkit.svg)](https://pypi.org/project/mcp-toolkit/)
-[![Python](https://img.shields.io/pypi/pyversions/mcp-toolkit.svg)](https://pypi.org/project/mcp-toolkit/)
+[![CI](https://github.com/AlexisMarasigan/fastmcp-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexisMarasigan/fastmcp-kit/actions/workflows/ci.yml)
+[![Security](https://github.com/AlexisMarasigan/fastmcp-kit/actions/workflows/security.yml/badge.svg)](https://github.com/AlexisMarasigan/fastmcp-kit/actions/workflows/security.yml)
+[![PyPI](https://img.shields.io/pypi/v/fastmcp-kit.svg)](https://pypi.org/project/fastmcp-kit/)
+[![Python](https://img.shields.io/pypi/pyversions/fastmcp-kit.svg)](https://pypi.org/project/fastmcp-kit/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **Status:** pre-release (0.1.0.dev0). API surface is being shaped; not yet on PyPI. See [docs/ROADMAP.md](docs/ROADMAP.md).
+> **0.1.0 live on PyPI.** `pip install fastmcp-kit` then `from mcp_toolkit import MCPToolkit`. The distribution name (`fastmcp-kit`) and the Python module name (`mcp_toolkit`) differ — same pattern as `pip install pyyaml` → `import yaml`. PyPI's similarity rules rejected the shorter name.
 
-A Python framework for building authenticated, scoped, observable MCP (Model Context Protocol) servers.
+A Python framework for building authenticated, scoped, observable MCP (Model Context Protocol) servers on top of FastMCP.
 
-You bring the tools. `mcp-toolkit` brings:
+You bring the tools. `fastmcp-kit` brings:
 
 - **Tool registry** — register tools with `@toolkit.tool(...)`, group them, version them.
 - **Scoped auth** — bearer tokens carry scopes; `list_tools` is filtered per caller. Tokens never see tools they can't call.
@@ -40,17 +40,27 @@ Tokens minted with `scopes=["read:weather"]` discover and call `get_weather`. Th
 
 ## Why not just FastMCP?
 
-FastMCP gives you the MCP wire protocol and transports. `mcp-toolkit` gives you the production layer above it: auth-scoped discovery, metric-per-tool, dashboards-from-code, multitenancy. You can use both — `mcp-toolkit` wraps FastMCP under the hood.
+FastMCP gives you the MCP wire protocol and transports. `fastmcp-kit` gives you the production layer above it: auth-scoped discovery, metric-per-tool, dashboards-from-code, multitenancy. You can use both — `fastmcp-kit` wraps FastMCP under the hood.
 
 ## Install
 
-> Not yet on PyPI. Track [docs/ROADMAP.md](docs/ROADMAP.md) for the 0.1.0 release.
+[![PyPI](https://img.shields.io/pypi/v/fastmcp-kit.svg)](https://pypi.org/project/fastmcp-kit/)
 
 ```bash
-# Once published:
-uv add mcp-toolkit
-# With observability batteries:
-uv add 'mcp-toolkit[observability]'
+# Just the framework
+uv add fastmcp-kit
+
+# With observability batteries (Prometheus exposition + Grafana JSON gen)
+uv add 'fastmcp-kit[observability]'
+
+# Everything
+uv add 'fastmcp-kit[observability,redis,otel]'
+```
+
+Import name stays `mcp_toolkit`:
+
+```python
+from mcp_toolkit import MCPToolkit
 ```
 
 ## One-click stack

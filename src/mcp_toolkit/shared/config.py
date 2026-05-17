@@ -8,8 +8,9 @@ substitute a fixture.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Any, Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 TokenStoreBackend = Literal["memory", "upstash"]
@@ -34,6 +35,13 @@ class Settings(BaseSettings):
     upstash_redis_rest_url: str = ""
     upstash_redis_rest_token: str = ""
     mcptk_auth_disabled: bool = False
+    # Routes that bypass bearer auth. Default exempts `/healthz` so the
+    # kubelet's liveness + readiness probes succeed when auth is on, and
+    # `/metrics` so Prometheus can scrape without holding a token. Both
+    # remain subject to NetworkPolicy / service-mesh isolation in real
+    # deployments. Comma-separated; entries match `request.url.path`
+    # exactly (no wildcards in 0.1.x).
+    auth_exempt_paths: str = "/healthz,/metrics"
 
     # --- Observability ---
     metrics_path: str = "/metrics"
@@ -55,6 +63,22 @@ class Settings(BaseSettings):
     @property
     def allowed_hosts(self) -> list[str]:
         return [h.strip() for h in self.mcp_allowed_hosts.split(",") if h.strip()]
+
+    @property
+    def auth_exempt_set(self) -> frozenset[str]:
+        return frozenset(p.strip() for p in self.auth_exempt_paths.split(",") if p.strip())
+
+    # Hand-edited .env files frequently leave bool stubs blank
+    # (`MCPTK_AUTH_DISABLED=`). Pydantic-settings rejects empty-string for
+    # `bool` fields, which breaks the framework on a fresh
+    # `cp .env.example .env`. Drop empty-string entries from the input
+    # mapping so pydantic falls back to the declared defaults.
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_blank_inputs(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            return {k: v for k, v in values.items() if not (isinstance(v, str) and v.strip() == "")}
+        return values
 
 
 @lru_cache(maxsize=1)

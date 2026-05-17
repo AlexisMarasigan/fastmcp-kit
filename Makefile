@@ -49,13 +49,13 @@ check: lint typecheck verify-docs test
 all: check
 
 stack-up:
-	docker compose -f deploy/observability-stack/compose.yaml up -d --build
+	docker compose -f deploy/observability-stack/compose.dev.yaml up -d --build
 
 stack-down:
-	docker compose -f deploy/observability-stack/compose.yaml down
+	docker compose -f deploy/observability-stack/compose.dev.yaml down
 
 stack-clean:
-	docker compose -f deploy/observability-stack/compose.yaml down -v
+	docker compose -f deploy/observability-stack/compose.dev.yaml down -v
 
 gen-dashboards:
 	uv run mcp-toolkit gen-dashboards \
