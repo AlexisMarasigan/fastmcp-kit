@@ -58,7 +58,11 @@ jobs:
         with:
           enable-cache: true
       - run: uv python install ${{ env.PYTHON_VERSION }}
-      - run: uv sync --frozen --group dev
+      # Install with every optional extra: the test suite covers the
+      # `[observability]` (prometheus + grafana) and `[otel]` paths, and
+      # mypy needs the import targets visible. Skipping extras here
+      # produces import errors in the typecheck + test jobs.
+      - run: uv sync --frozen --group dev --extra observability --extra redis --extra otel
       - name: mypy
         run: uv run mypy
 
@@ -75,7 +79,11 @@ jobs:
         with:
           enable-cache: true
       - run: uv python install ${{ matrix.python }}
-      - run: uv sync --frozen --group dev
+      # Install with every optional extra: the test suite covers the
+      # `[observability]` (prometheus + grafana) and `[otel]` paths, and
+      # mypy needs the import targets visible. Skipping extras here
+      # produces import errors in the typecheck + test jobs.
+      - run: uv sync --frozen --group dev --extra observability --extra redis --extra otel
       - name: Run unit tests with coverage
         run: uv run pytest tests/unit --cov-report=xml
       - name: Upload coverage
