@@ -7,6 +7,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Sprint 1: Registry domain.** `MCPToolkit` object with `@toolkit.tool(group=, scopes=, name=, description=)` decorator. `tools_for(scopes)` discovery filter. Name-collision and post-build-mutation guards. FastMCP `add_tool` wiring through `apps/server/mcp_app.compose_app`. 26 unit tests in mirror layout; registry domain at 100% coverage.
 - Repository scaffold, harness, and Clara-style docs ported from `db2st-mcp`.
 - Domain stubs: `registry`, `auth`, `observability`, `tenancy`.
 - `pyproject.toml` with optional extras: `redis`, `prometheus`, `grafana`, `observability`, `otel`.

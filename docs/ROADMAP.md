@@ -18,16 +18,16 @@ with a runnable, demonstrable artifact.
 
 **Exit:** `uv sync && uv run pytest` passes against domain stubs.
 
-## Sprint 1 — Registry domain
+## Sprint 1 — Registry domain ✅
 
-- [ ] `MCPToolkit` object: tool registration, group support, scope frozen-set
-- [ ] `@toolkit.tool(...)` decorator with name collision + post-build mutation guards
-- [ ] `MCPToolkit.tools_for(scopes)` discovery filter
-- [ ] Wire FastMCP `add_tool` from registered handlers
-- [ ] Unit tests for: registration, name collision, scope filter, post-build mutation
-- [ ] DOMAIN.md kept in sync via `verify-docs`
+- [x] `MCPToolkit` object: tool registration, group support, scope frozen-set
+- [x] `@toolkit.tool(...)` decorator with name collision + post-build mutation guards
+- [x] `MCPToolkit.tools_for(scopes)` discovery filter
+- [x] Wire FastMCP `add_tool` from registered handlers (via `apps/server/mcp_app.compose_app`)
+- [x] Unit tests in mirror layout (`tests/unit/domains/registry/server/test_toolkit.py`) — 26 tests covering registration, name collision, scope filter, post-build mutation, FastMCP wire, logging surface
+- [x] DOMAIN.md kept in sync via `verify-docs`
 
-**Exit:** A user can `pip install mcp-toolkit`, register tools, build an app, and serve over HTTP. No auth yet.
+**Exit:** A user can `pip install mcp-toolkit`, register tools, build an app, and serve over HTTP. Registry domain at 100% coverage. No auth yet — that's Sprint 2.
 
 ## Sprint 2 — Auth domain
 
