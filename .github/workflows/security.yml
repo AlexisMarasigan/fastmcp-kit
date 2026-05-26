@@ -45,7 +45,7 @@ jobs:
           uv export --frozen --no-dev --format requirements-txt \
             | grep -v '^-e\|^# ' > requirements.txt
       - name: pip-audit
-        uses: pypa/gh-action-pip-audit@v1.0.8
+        uses: pypa/gh-action-pip-audit@v1.1.0
         with:
           inputs: requirements.txt
 
