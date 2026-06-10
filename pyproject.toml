@@ -55,6 +55,12 @@ grafana = []
 observability = [
   "prometheus-client>=0.21.0",
 ]
+# Billing consumer app (apps/billing): rate tables + Stripe Meters sink.
+# The Stripe sink talks to the Meters API via httpx (core dep) — pyyaml is
+# only needed to parse rates.yaml. JSON rate tables work without this extra.
+billing = ["pyyaml>=6.0.1"]
+# Mode B (client-held continuation tokens) is deferred; when implemented it
+# ships as a `chain` extra per docs/SPEC-conversation-metering.md — never core.
 # OpenTelemetry tracing (opt-in, off by default to keep cold start fast).
 otel = [
   "opentelemetry-api>=1.27.0",
@@ -66,6 +72,7 @@ otel = [
 
 [project.scripts]
 mcp-toolkit = "mcp_toolkit.apps.server.cli:main"
+mcp-toolkit-billing = "mcp_toolkit.apps.billing.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/AlexisMarasigan/fastmcp-kit"
@@ -171,6 +178,7 @@ module = [
   "upstash_redis.*",
   "opentelemetry.*",
   "prometheus_client.*",
+  "yaml.*",
 ]
 ignore_missing_imports = true
 

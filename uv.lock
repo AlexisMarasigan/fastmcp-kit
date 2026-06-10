@@ -442,6 +442,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+billing = [
+    { name = "pyyaml" },
+]
 observability = [
     { name = "prometheus-client" },
 ]
@@ -485,11 +488,12 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.9.0" },
     { name = "pydantic-settings", specifier = ">=2.6.0" },
     { name = "python-ulid", specifier = ">=3.0.0" },
+    { name = "pyyaml", marker = "extra == 'billing'", specifier = ">=6.0.1" },
     { name = "structlog", specifier = ">=24.4.0" },
     { name = "upstash-redis", marker = "extra == 'redis'", specifier = ">=1.2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
 ]
-provides-extras = ["redis", "prometheus", "grafana", "observability", "otel"]
+provides-extras = ["redis", "prometheus", "grafana", "observability", "billing", "otel"]
 
 [package.metadata.requires-dev]
 dev = [

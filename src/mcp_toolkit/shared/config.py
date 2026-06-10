@@ -15,6 +15,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 TokenStoreBackend = Literal["memory", "upstash"]
 TenantStrategy = Literal["single", "header", "subdomain", "token"]
+ConversationStoreBackend = Literal["memory", "upstash"]
+MeterSinkBackend = Literal["redis_stream", "jsonl", "stripe_meters"]
 
 
 class Settings(BaseSettings):
@@ -56,6 +58,46 @@ class Settings(BaseSettings):
 
     # --- Multi-tenancy ---
     tenant_strategy: TenantStrategy = "single"
+
+    # --- Conversation identity (opt-in, like tenancy) ---
+    # See docs/SPEC-conversation-metering.md. When disabled the conversation
+    # middleware is never mounted — zero overhead.
+    conv_enabled: bool = False
+    conv_key_sources: str = "meta,header,session"
+    conv_header: str = "X-Conversation-Key"
+    # `_meta` field consulted on `tools/call` (waterfall source "meta", §6.1).
+    conv_meta_key: str = "ai.mcp-toolkit.conversation_key"
+    conv_end_user_header: str = "X-End-User-Id"
+    conv_ttl_header: str = "X-Conversation-Ttl"
+    conv_ttl_default: int = 86_400
+    conv_ttl_max: int = 604_800
+    conv_root_max_age: int = 604_800
+    conv_inflight_max: int = 16
+    # Base64-encoded 32-byte Ed25519 private seed. Empty in dev mode mints an
+    # ephemeral per-process key (blobs won't verify across pods — dev only).
+    conv_signing_key: str = ""
+    conv_signing_kid: str = "k1"
+    # Previous key for rotation overlap, same encoding. Verified, never signed with.
+    conv_signing_key_previous: str = ""
+    conv_signing_kid_previous: str = ""
+    conv_blob_ttl: int = 3_600
+    # Genesis events per tenant per hour. 0 = unlimited.
+    conv_genesis_rate_limit: int = 0
+    conv_store: ConversationStoreBackend = "memory"
+    conv_jwks_path: str = "/.well-known/mcp-toolkit-jwks.json"
+
+    # --- Metering (opt-in) ---
+    meter_enabled: bool = False
+    meter_sink: MeterSinkBackend = "redis_stream"
+    meter_dedupe_window: int = 300
+    meter_stream_key: str = "meter:events"
+    meter_jsonl_path: str = "meter-events.jsonl"
+    # Path to a rate table (yaml or json): rate_class x unit_type -> price.
+    meter_rate_table: str = ""
+
+    # --- Billing consumer (apps/billing, [billing] extra) ---
+    stripe_api_key: str = ""
+    stripe_meter_event_name: str = "mcp_units"
 
     # --- OTel ---
     otel_exporter_otlp_endpoint: str = ""

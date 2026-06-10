@@ -2,16 +2,39 @@
 
 from __future__ import annotations
 
+import base64
+from pathlib import Path
+
 import pytest
 
 from mcp_toolkit import MCPToolkit
 from mcp_toolkit.apps.server.mcp_app import _wrap_handler_with_metrics, compose_app
+from mcp_toolkit.domains.conversation.shared.schemas import ConversationConfig
+from mcp_toolkit.domains.metering.shared.schemas import MeteringConfig
 from mcp_toolkit.domains.observability.server import PrometheusRegistry
 from mcp_toolkit.domains.observability.shared import MetricSpec
+from mcp_toolkit.shared.config import get_settings
+
+_SEED = base64.b64encode(bytes(range(32))).decode("ascii")
+_JWKS_PATH = "/.well-known/mcp-toolkit-jwks.json"
 
 
 def _toolkit_with_ping() -> MCPToolkit:
     tk = MCPToolkit(name="t")
+
+    @tk.tool(group="g")
+    async def ping() -> dict[str, str]:
+        return {"pong": "ok"}
+
+    return tk
+
+
+def _toolkit_with_conversation(metering: MeteringConfig | None = None) -> MCPToolkit:
+    tk = MCPToolkit(
+        name="t",
+        conversation=ConversationConfig(enabled=True, signing_key=_SEED),
+        metering=metering,
+    )
 
     @tk.tool(group="g")
     async def ping() -> dict[str, str]:
@@ -112,6 +135,41 @@ class TestMetricWrapper:
         # Should be the bare handler (same reference).
         assert wrapped is tk.tools()[0].handler
 
+    @pytest.mark.asyncio
+    async def test_handler_override_wraps_inner_callable(self) -> None:
+        """The metering wrapper slots inside via the `handler=` override."""
+        tk = _toolkit_with_ping()
+        reg = _registry_with_baselines()
+        spec = tk.tools()[0]
+
+        async def inner() -> dict[str, str]:
+            return {"pong": "override"}
+
+        wrapped = _wrap_handler_with_metrics(spec, reg, handler=inner)
+        assert await wrapped() == {"pong": "override"}
+        counter = reg.collector("mcp_toolkit_tool_invocations_total")
+        sample = counter.labels(
+            tool="ping", group="g", tenant="default", outcome="success"
+        )._value.get()
+        assert sample == 1
+
+    def test_missing_collectors_return_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from mcp_toolkit.shared.errors import OptionalDependencyMissingError
+
+        tk = _toolkit_with_ping()
+        empty_reg = PrometheusRegistry()
+
+        def raise_missing(_: str) -> object:
+            raise OptionalDependencyMissingError("prometheus_client", "prometheus")
+
+        monkeypatch.setattr(empty_reg, "collector", raise_missing)
+
+        async def inner() -> dict[str, str]:
+            return {"pong": "override"}
+
+        wrapped = _wrap_handler_with_metrics(tk.tools()[0], empty_reg, handler=inner)
+        assert wrapped is inner
+
 
 class TestComposeApp:
     def test_returns_fastapi_app(self) -> None:
@@ -150,3 +208,113 @@ class TestComposeApp:
         assert "mcp_toolkit_tool_invocations_total" in names
         assert "mcp_toolkit_tool_duration_seconds" in names
         assert "mcp_toolkit_auth_decisions_total" in names
+
+    def test_conversation_metrics_registered(self) -> None:
+        """Spec §12: registration is free, so the billing telemetry catalogue
+        is always declared — even with conversation/metering disabled.
+        """
+        app = compose_app(_toolkit_with_ping())
+        names = {s.name for s in app.state.prometheus.specs()}
+        assert {
+            "mcp_toolkit_units_total",
+            "mcp_toolkit_conversations_genesis_total",
+            "mcp_toolkit_inflight_rejections_total",
+            "mcp_toolkit_dedupe_hits_total",
+            "mcp_toolkit_state_evictions_total",
+        } <= names
+
+
+class TestConversationWiring:
+    def test_disabled_by_default_exposes_nothing(self) -> None:
+        app = compose_app(_toolkit_with_ping())
+        assert not hasattr(app.state, "conversation_store")
+        assert not hasattr(app.state, "blob_signer")
+        assert not hasattr(app.state, "meter_emitter")
+        paths = {getattr(r, "path", None) for r in app.routes}
+        assert _JWKS_PATH not in paths
+
+    def test_disabled_emits_no_session_header(self) -> None:
+        from fastapi.testclient import TestClient
+
+        app = compose_app(_toolkit_with_ping())
+        resp = TestClient(app).get("/healthz")
+        assert "mcp-session-id" not in resp.headers
+
+    def test_enabled_adds_exactly_one_middleware(self) -> None:
+        base = compose_app(_toolkit_with_ping())
+        enabled = compose_app(_toolkit_with_conversation())
+        assert len(enabled.user_middleware) == len(base.user_middleware) + 1
+
+    def test_enabled_exposes_store_and_signer(self) -> None:
+        app = compose_app(_toolkit_with_conversation())
+        assert hasattr(app.state, "conversation_store")
+        assert hasattr(app.state, "blob_signer")
+
+    def test_jwks_route_is_public_even_with_auth_enabled(self) -> None:
+        """Public keys are public — same reasoning as /healthz."""
+        from fastapi.testclient import TestClient
+
+        app = compose_app(_toolkit_with_conversation())
+        resp = TestClient(app).get(_JWKS_PATH)  # no bearer token
+        assert resp.status_code == 200
+        keys = resp.json()["keys"]
+        assert keys
+        assert keys[0]["kty"] == "OKP"
+
+    def test_library_config_wins_over_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Spec §13: a toolkit-supplied config's .enabled beats CONV_ENABLED."""
+        monkeypatch.setenv("CONV_ENABLED", "1")
+        get_settings.cache_clear()
+        try:
+            tk = MCPToolkit(
+                name="t",
+                conversation=ConversationConfig(enabled=False, signing_key=_SEED),
+            )
+
+            @tk.tool(group="g")
+            async def ping() -> dict[str, str]:
+                return {"pong": "ok"}
+
+            app = compose_app(tk)
+            assert not hasattr(app.state, "conversation_store")
+        finally:
+            get_settings.cache_clear()
+
+    def test_env_enables_conversation_without_library_config(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CONV_ENABLED", "1")
+        get_settings.cache_clear()
+        try:
+            app = compose_app(_toolkit_with_ping())
+            assert hasattr(app.state, "conversation_store")
+        finally:
+            get_settings.cache_clear()
+
+
+class TestMeteringWiring:
+    def test_metering_without_conversation_is_skipped(self, tmp_path: Path) -> None:
+        """Metering bills per root; without conversation identity it can't run."""
+        tk = MCPToolkit(
+            name="t",
+            metering=MeteringConfig(
+                enabled=True, sink="jsonl", jsonl_path=str(tmp_path / "e.jsonl")
+            ),
+        )
+
+        @tk.tool(group="g")
+        async def ping() -> dict[str, str]:
+            return {"pong": "ok"}
+
+        app = compose_app(tk)  # must not raise
+        assert not hasattr(app.state, "meter_emitter")
+
+    def test_metering_active_exposes_emitter_and_wrapped_handlers(self, tmp_path: Path) -> None:
+        metering = MeteringConfig(enabled=True, sink="jsonl", jsonl_path=str(tmp_path / "e.jsonl"))
+        app = compose_app(_toolkit_with_conversation(metering=metering))
+        assert hasattr(app.state, "meter_emitter")
+        assert "ping" in app.state._metered_handlers
+
+    def test_wrapped_handlers_stashed_without_metering(self) -> None:
+        app = compose_app(_toolkit_with_ping())
+        assert "ping" in app.state._metered_handlers

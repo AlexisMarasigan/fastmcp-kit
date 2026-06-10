@@ -10,7 +10,7 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from mcp_toolkit import MCPToolkit, RegistryError, Scope, ToolGroup, ToolSpec
-from mcp_toolkit.domains.registry.server.toolkit import ToolHandler
+from mcp_toolkit.domains.registry.server.toolkit import MeterHook, ToolHandler
 
 # ---------------------------------------------------------------------------
 # ToolGroup
@@ -157,6 +157,138 @@ class TestMCPToolkitRegistration:
             return None
 
         assert tk.tools()[0].scopes == frozenset()
+
+
+# ---------------------------------------------------------------------------
+# MCPToolkit — metering metadata (spec §4, §7.3, §10)
+# ---------------------------------------------------------------------------
+
+
+class TestToolMeteringMetadata:
+    def test_read_only_defaults_false_on_spec(self) -> None:
+        async def handler() -> None:
+            return None
+
+        spec = ToolSpec(name="t", group="g", scopes=frozenset(), handler=handler)
+        assert spec.read_only is False
+
+    def test_meter_defaults_none_on_spec(self) -> None:
+        async def handler() -> None:
+            return None
+
+        spec = ToolSpec(name="t", group="g", scopes=frozenset(), handler=handler)
+        assert spec.meter is None
+
+    def test_decorator_defaults(self) -> None:
+        tk = MCPToolkit(name="t")
+
+        @tk.tool(group="g")
+        async def plain() -> None:
+            return None
+
+        spec = tk.tools()[0]
+        assert spec.read_only is False
+        assert spec.meter is None
+
+    def test_decorator_stores_read_only(self) -> None:
+        tk = MCPToolkit(name="t")
+
+        @tk.tool(group="search", read_only=True)
+        async def search(query: str) -> dict[str, str]:
+            return {"q": query}
+
+        assert tk.tools()[0].read_only is True
+
+    def test_decorator_stores_meter_hook(self) -> None:
+        tk = MCPToolkit(name="t")
+
+        def hook(result: object, ctx: object) -> dict[str, object]:
+            return {"amount": 1.0, "unit_type": "calls", "rate_class": "cold"}
+
+        @tk.tool(group="search", meter=hook)
+        async def search(query: str) -> dict[str, str]:
+            return {"q": query}
+
+        assert tk.tools()[0].meter is hook
+
+    def test_meter_hook_is_callable_with_result_and_context(self) -> None:
+        tk = MCPToolkit(name="t")
+        seen: list[tuple[object, object]] = []
+
+        def hook(result: object, ctx: object) -> float:
+            seen.append((result, ctx))
+            return 2.5
+
+        @tk.tool(group="g", meter=hook)
+        async def f() -> None:
+            return None
+
+        meter = tk.tools()[0].meter
+        assert meter is not None
+        assert meter({"ok": True}, "conv-ctx") == 2.5
+        assert seen == [({"ok": True}, "conv-ctx")]
+
+    def test_read_only_and_meter_combine_with_scopes(self) -> None:
+        tk = MCPToolkit(name="t")
+
+        def hook(result: object, ctx: object) -> float:
+            return 1.0
+
+        @tk.tool(group="search", scopes=["read:search"], read_only=True, meter=hook)
+        async def search(query: str) -> dict[str, str]:
+            return {"q": query}
+
+        spec = tk.tools()[0]
+        assert spec.scopes == frozenset({"read:search"})
+        assert spec.read_only is True
+        assert spec.meter is hook
+        # Visibility behavior unchanged by the new metadata.
+        assert spec.is_visible_to(frozenset({"read:search"}))
+        assert not spec.is_visible_to(frozenset())
+
+    def test_spec_with_metering_metadata_stays_frozen(self) -> None:
+        async def handler() -> None:
+            return None
+
+        spec = ToolSpec(
+            name="t",
+            group="g",
+            scopes=frozenset(),
+            handler=handler,
+            read_only=True,
+        )
+        with pytest.raises(FrozenInstanceError):
+            spec.read_only = False  # type: ignore[misc]
+
+
+class TestMCPToolkitConfigs:
+    def test_conversation_and_metering_default_none(self) -> None:
+        tk = MCPToolkit(name="t")
+        assert tk.conversation is None
+        assert tk.metering is None
+
+    def test_accepts_opaque_conversation_and_metering_objects(self) -> None:
+        conversation = object()
+        metering = object()
+        tk = MCPToolkit(name="t", conversation=conversation, metering=metering)
+        assert tk.conversation is conversation
+        assert tk.metering is metering
+
+    def test_configs_do_not_affect_registration(self) -> None:
+        tk = MCPToolkit(name="t", conversation=object(), metering=object())
+
+        @tk.tool(group="g", scopes=["read:g"])
+        async def f() -> None:
+            return None
+
+        names = {t.name for t in tk.tools_for(frozenset({"read:g"}))}
+        assert names == {"f"}
+
+
+def test_meter_hook_type_alias_resolves() -> None:
+    # MeterHook is `Callable[[Any, Any], Any]` — pin that the alias exists
+    # as part of the public surface.
+    assert MeterHook is not None
 
 
 # ---------------------------------------------------------------------------

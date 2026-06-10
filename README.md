@@ -42,6 +42,49 @@ Tokens minted with `scopes=["read:weather"]` discover and call `get_weather`. Th
 
 FastMCP gives you the MCP wire protocol and transports. `fastmcp-kit` gives you the production layer above it: auth-scoped discovery, metric-per-tool, dashboards-from-code, multitenancy. You can use both — `fastmcp-kit` wraps FastMCP under the hood.
 
+## Per-conversation metering & billing
+
+Opt-in (off by default): bill builders per *conversation*, not per API key. The server mints a
+signed conversation identity (no tokens for the builder to thread — at most one
+`X-Conversation-Key` header), meters every tool call into an append-only usage-event stream, and
+ships events to Stripe Meters via the `apps/billing` consumer (`[billing]` extra).
+
+```python
+from mcp_toolkit import MCPToolkit
+from mcp_toolkit.domains.conversation import ConversationConfig
+from mcp_toolkit.domains.metering import MeteringConfig, Units
+
+toolkit = MCPToolkit(
+    name="my-server",
+    conversation=ConversationConfig(
+        enabled=True,
+        key_sources=("meta", "header", "session"),
+        header="X-Conversation-Key",
+        ttl_default=86_400, ttl_max=604_800,
+        root_max_age=604_800,
+        inflight_max=16,
+        signing_key="<base64 Ed25519 seed>",  # SessionBlobSigner.generate_signing_key()
+    ),
+    metering=MeteringConfig(enabled=True, sink="redis_stream", dedupe_window=300),
+)
+
+@toolkit.tool(
+    group="search",
+    scopes=["read:search"],
+    read_only=True,
+    meter=lambda result, ctx: Units(
+        amount=1.0,
+        unit_type="calls",
+        rate_class="warm" if ctx.cache_hit else "cold",
+    ),
+)
+async def search(query: str) -> dict: ...
+```
+
+Tool handlers can call `current_conversation()` for a read-only context (root, key label,
+TTL-scoped state get/set). Design, fraud controls, and the full data model:
+[docs/SPEC-conversation-metering.md](docs/SPEC-conversation-metering.md).
+
 ## Install
 
 [![PyPI](https://img.shields.io/pypi/v/fastmcp-kit.svg)](https://pypi.org/project/fastmcp-kit/)
@@ -92,6 +135,9 @@ Three deployment surfaces ship in this repo:
 | Auth + scopes | `src/mcp_toolkit/domains/auth/DOMAIN.md` |
 | Metrics + dashboards | `src/mcp_toolkit/domains/observability/DOMAIN.md` |
 | Multi-tenancy | `src/mcp_toolkit/domains/tenancy/DOMAIN.md` |
+| Conversation identity | `src/mcp_toolkit/domains/conversation/DOMAIN.md` |
+| Metering + billing | `src/mcp_toolkit/domains/metering/DOMAIN.md` |
+| Metering spec | [docs/SPEC-conversation-metering.md](docs/SPEC-conversation-metering.md) |
 | Roadmap | [docs/ROADMAP.md](docs/ROADMAP.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Security policy | [SECURITY.md](SECURITY.md) |

@@ -30,14 +30,20 @@ The framework's public API is the **library surface**. The **service surface** i
 
 ```
 HTTP request
-  → apps/server         (transport, routing, FastMCP wire)
-  → domains/auth        (validate bearer, resolve scopes + tenant)
-  → domains/tenancy     (bind tenant context)
-  → domains/registry    (filter tool discovery by scope)
-  → tool dispatch
-  → domains/observability (record metric, emit event)
-  → HTTP response
+  → apps/server           (transport, routing, FastMCP wire)
+  → domains/auth          (validate bearer, resolve scopes + tenant)
+  → domains/tenancy       (bind tenant context)
+► → domains/conversation  (resolve key → root; verify/issue session blob;
+                           admission: in-flight semaphore + dedupe; bind-once)
+  → domains/registry      (filter tool discovery by scope)
+  → tool dispatch          (read-only tools bypass write serialization)
+► → domains/metering      (compute units, classify rate, emit usage event)
+  → domains/observability (record metric — NO root label)
+  → HTTP response          (session blob header on initialize)
 ```
+
+The ► steps are opt-in (`CONV_ENABLED` / `METER_ENABLED`, both off by default) — disabled, they are
+never mounted. See [docs/SPEC-conversation-metering.md](docs/SPEC-conversation-metering.md).
 
 ## Domains
 
@@ -47,12 +53,15 @@ HTTP request
 | `auth` | Tokens, scopes (what groups a token sees), quotas, lifecycle. | [DOMAIN.md](src/mcp_toolkit/domains/auth/DOMAIN.md) |
 | `observability` | Prometheus metric registration API, `/metrics` exposition, Grafana dashboard generator. | [DOMAIN.md](src/mcp_toolkit/domains/observability/DOMAIN.md) |
 | `tenancy` | Tenant resolution (header / subdomain / token-claim), per-tenant observability gating. | [DOMAIN.md](src/mcp_toolkit/domains/tenancy/DOMAIN.md) |
+| `conversation` | Server-minted conversation identity (root), key waterfall, signed session blob, admission/dedupe, bind-once, TTL state. Opt-in. | [DOMAIN.md](src/mcp_toolkit/domains/conversation/DOMAIN.md) |
+| `metering` | Usage-event schema + emission, rate classes, sinks (Redis Stream / JSONL / Stripe Meters), pricing hooks. Opt-in. | [DOMAIN.md](src/mcp_toolkit/domains/metering/DOMAIN.md) |
 
 ## Apps
 
 | App | Composes |
 |---|---|
-| `server` | MCP transport + auth middleware + tenancy + scope filter + tool registry + metrics middleware. No business logic. See [APP.md](src/mcp_toolkit/apps/server/APP.md). |
+| `server` | MCP transport + auth middleware + tenancy + conversation + scope filter + tool registry + metering wrapping + metrics middleware. No business logic. See [APP.md](src/mcp_toolkit/apps/server/APP.md). |
+| `billing` | Stream consumer: reads `meter:events`, prices events with a rate table, ships them to a Stripe-Meters-compatible sink (or JSONL). Ships as the `[billing]` extra with the `mcp-toolkit-billing` CLI. |
 
 ## Shared
 
@@ -68,9 +77,15 @@ HTTP request
 apps/server ──► domains/auth ──► domains/tenancy
 apps/server ──► domains/registry
 apps/server ──► domains/observability
+apps/server ──► domains/conversation
+apps/server ──► domains/metering
+apps/billing ──► domains/metering
 domains/observability ──► domains/tenancy   (per-tenant metric labels)
 domains/registry ──► domains/auth           (scope→group resolution)
+domains/conversation ──► domains/auth, domains/tenancy   (resolved tenant, by convention)
+domains/metering ──► domains/conversation, domains/registry
 domains/* ──► shared/
+apps/* ──► shared/
 ```
 
 No circular deps. Cross-domain edges are minimal and documented in each importer's `DOMAIN.md`.
@@ -106,3 +121,6 @@ Each domain owns the metrics it emits; `domains/observability` provides the regi
 
 **2026-05-17: Multitenancy is opt-in, layered above auth.**
 Single-tenant deployments (`TENANT_STRATEGY=single`) skip the tenancy domain's middleware entirely — zero overhead. Multi-tenant deployments pick a resolver (header / subdomain / token-claim). Tenant boundary lives at observability *and* tool-discovery layer.
+
+**2026-06-10: Per-conversation metering — bill marginal cost, server-minted identity, event log as system of record.**
+See [docs/SPEC-conversation-metering.md](docs/SPEC-conversation-metering.md).
