@@ -108,7 +108,9 @@ async def _acquire_write_lock(store: ConversationStore, root: str, tool: str) ->
             return token
         if attempt < LOCK_ATTEMPTS - 1:
             # Jitter, not crypto — plain `random` is fine here.
-            await asyncio.sleep(random.uniform(LOCK_RETRY_MIN_S, LOCK_RETRY_MAX_S))  # noqa: S311
+            await asyncio.sleep(
+                random.uniform(LOCK_RETRY_MIN_S, LOCK_RETRY_MAX_S)  # noqa: S311  # nosec B311
+            )
     _log.warning(
         "metering.write_lock_unavailable",
         root=root,

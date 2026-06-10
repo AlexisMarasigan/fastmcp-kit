@@ -120,7 +120,7 @@ def flow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Flow]:
 def initialize(flow: Flow, *, key: str = "thread-1", request_id: int = 1) -> str:
     resp = flow.client.post("/mcp", json=init_payload(request_id), headers={KEY_HEADER: key})
     assert resp.status_code == 200
-    return resp.headers[SESSION_HEADER]
+    return str(resp.headers[SESSION_HEADER])
 
 
 def counter_value(flow: Flow, name: str, **labels: str) -> float:

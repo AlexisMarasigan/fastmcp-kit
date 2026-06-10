@@ -166,7 +166,7 @@ def initialize(stack: AuthedStack, *, key: str, request_id: int = 1) -> str:
         headers={**stack.auth, KEY_HEADER: key},
     )
     assert resp.status_code == 200
-    return resp.headers[SESSION_HEADER]
+    return str(resp.headers[SESSION_HEADER])
 
 
 class TestScenarioAAuthenticatedChain:
@@ -331,7 +331,7 @@ def live_server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Liv
 async def _initialize_live(client: httpx.AsyncClient, key: str) -> str:
     resp = await client.post("/mcp", json=init_payload(), headers={KEY_HEADER: key})
     assert resp.status_code == 200
-    return resp.headers[SESSION_HEADER]
+    return str(resp.headers[SESSION_HEADER])
 
 
 def run_billing_cli(*args: str) -> subprocess.CompletedProcess[str]:
