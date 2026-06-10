@@ -25,6 +25,16 @@ _log = get_logger(__name__)
 
 ToolHandler = Callable[..., Awaitable[Any]]
 
+MeterHook = Callable[[Any, Any], Any]
+"""Per-tool pricing hook: ``(result, conversation_context) -> Units``.
+
+Called by the metering domain after tool dispatch with the tool's return
+value and the active read-only conversation context; it returns a
+``mcp_toolkit.domains.metering.shared.schemas.Units``. Typed loosely as
+``Any`` on purpose: the dependency direction is metering → registry
+(see ARCHITECTURE.md), so the registry never imports the metering domain.
+"""
+
 
 @dataclass(frozen=True)
 class ToolGroup:
@@ -36,13 +46,24 @@ class ToolGroup:
 
 @dataclass(frozen=True)
 class ToolSpec:
-    """Internal registration record — one per `@toolkit.tool` decoration."""
+    """Internal registration record — one per `@toolkit.tool` decoration.
+
+    Metering metadata (spec §4, §7.3, §10):
+        read_only: Tools marked `True` never mutate shared conversation
+            state and therefore bypass the per-root write serialization
+            lock during dispatch.
+        meter: Optional `MeterHook` — `(result, conversation_context) ->
+            Units` — consumed by the metering domain to price the call.
+            `None` means the tool bills at the domain's default units.
+    """
 
     name: str
     group: str
     scopes: frozenset[Scope]
     handler: ToolHandler
     description: str = ""
+    read_only: bool = False
+    meter: MeterHook | None = None
 
     def is_visible_to(self, caller_scopes: frozenset[Scope]) -> bool:
         """A tool is visible iff every scope it requires is held by the caller."""
@@ -61,6 +82,11 @@ class MCPToolkit:
 
     name: str
     version: str = "0.0.0"
+    # Opaque ConversationConfig / MeteringConfig consumed by
+    # `apps/server.compose_app`. Kept as `Any` so the registry stays
+    # transport- and domain-free (dependency direction: apps → registry).
+    conversation: Any | None = None
+    metering: Any | None = None
     groups: dict[str, ToolGroup] = field(default_factory=dict)
     _tools: dict[str, ToolSpec] = field(default_factory=dict)
     _built: bool = False
@@ -77,6 +103,8 @@ class MCPToolkit:
         scopes: list[Scope] | None = None,
         name: str | None = None,
         description: str = "",
+        read_only: bool = False,
+        meter: MeterHook | None = None,
     ) -> Callable[[ToolHandler], ToolHandler]:
         """Decorator: register a coroutine as an MCP tool.
 
@@ -85,6 +113,10 @@ class MCPToolkit:
             scopes: Scopes required to discover + invoke. Empty list = public.
             name: Override the tool's wire name (defaults to function name).
             description: Surfaced to MCP clients.
+            read_only: Mark the tool as never mutating shared conversation
+                state; such tools bypass per-root write serialization.
+            meter: Per-tool pricing hook `(result, conversation_context) ->
+                Units`; see `MeterHook`. `None` = default metering.
 
         Raises:
             RegistryError: If the registry has already been built, or if the
@@ -106,6 +138,8 @@ class MCPToolkit:
                 scopes=frozenset(scopes or []),
                 handler=handler,
                 description=description,
+                read_only=read_only,
+                meter=meter,
             )
             self._tools[tool_name] = spec
             _log.info(

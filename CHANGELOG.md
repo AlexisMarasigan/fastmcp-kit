@@ -4,6 +4,47 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-06-10
+
+Per-conversation metering, billing, and fraud resistance
+([docs/SPEC-conversation-metering.md](docs/SPEC-conversation-metering.md)).
+**Fully additive — no breaking changes.** Both new domains are opt-in
+(`CONV_ENABLED` / `METER_ENABLED`, off by default) with zero overhead
+when disabled; all new `@toolkit.tool` / `MCPToolkit` parameters default
+to the previous behavior.
+
+### Added
+- **Conversation domain** (`domains/conversation`): server-minted
+  conversation identity (ULID root) resolved via a key waterfall
+  (`_meta` → `X-Conversation-Key` header → session), signed Ed25519
+  `Mcp-Session-Id` session blob with kid rotation + a public JWKS
+  endpoint, per-root in-flight admission semaphore, request-identity
+  dedupe, bind-once key enforcement, per-tenant genesis rate limit, and
+  TTL-scoped conversation state. `InMemoryConversationStore` (dev) +
+  `UpstashConversationStore` (`[redis]` extra). Tool handlers read the
+  identity through `current_conversation()`.
+- **Metering domain** (`domains/metering`): append-only `UsageEvent`
+  schema (v1) as the billing system of record, rate classes
+  (`genesis|cold|warm|rehydration|state_rent`), state-rent accrual,
+  `UsageEventEmitter`, and three sinks — `RedisStreamSink` (durable
+  primary), `JsonlSink`, and `StripeMetersSink` (idempotent on
+  `event_id`). `RateTable` / `load_rate_table` pricing hooks; unpriced
+  events bill 0.0 (shadow mode).
+- **Billing app** (`apps/billing`) + **`[billing]` extra** (pyyaml for
+  YAML rate tables) + `mcp-toolkit-billing` console script: consumes
+  the `meter:events` stream and ships priced events to a
+  Stripe-Meters-compatible sink.
+- **`@toolkit.tool` new params:** `read_only=` (bypass per-root write
+  serialization) and `meter=` (per-tool pricing hook
+  `(result, ctx) -> Units`).
+- **`MCPToolkit` new params:** `conversation=ConversationConfig(...)`
+  and `metering=MeteringConfig(...)` — library config wins over env.
+- New `CONV_*` / `METER_*` / `STRIPE_*` settings (see `.env.example`)
+  and new low-cardinality metrics: `mcp_toolkit_units_total`,
+  `mcp_toolkit_conversations_genesis_total`,
+  `mcp_toolkit_inflight_rejections_total`,
+  `mcp_toolkit_dedupe_hits_total`, `mcp_toolkit_state_evictions_total`.
+
 ## [0.1.1] — 2026-05-17
 
 Maintenance release. No library API changes. PyPI distribution rename

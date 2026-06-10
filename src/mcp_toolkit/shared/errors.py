@@ -19,6 +19,24 @@ class TenancyError(McpToolkitError):
     """Tenant resolution failed or boundary violated."""
 
 
+class ConversationError(McpToolkitError):
+    """Conversation identity, admission, or lifecycle failure.
+
+    `code` is the wire-level error code surfaced to MCP clients
+    (`conversation_key_conflict`, `conversation_concurrency_exceeded`,
+    `conversation_expired`, `conversation_genesis_rate_exceeded`,
+    `invalid_conversation_key`, `invalid_end_user_id`).
+    """
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+class MeteringError(McpToolkitError):
+    """Usage-event emission or sink failure."""
+
+
 class OptionalDependencyMissingError(McpToolkitError):
     """A code path requires an extra that isn't installed.
 
