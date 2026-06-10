@@ -242,11 +242,21 @@ class _ConversationGateway:
         ttl: int,
         end_user: str | None,
     ) -> ConversationRecord:
-        """Resolve `(tenant, key) → root` with sliding TTL, or genesis on miss (§6.4)."""
+        """Resolve `(tenant, key) → root` with sliding TTL, or genesis on miss (§6.4).
+
+        A resumed root past the hard age cap (§8.2) is NOT resumed:
+        re-engagement after the cap is a new genesis. Without this check a
+        live key mapping would keep resuming a root whose blobs can never
+        verify again — bricking the key until the mapping's TTL lapses.
+        """
         root = await self._store.resolve_root(tenant, key[0], ttl=ttl)
         if root is None:
             return await self._genesis(tenant, key, ttl, end_user)
-        return await self._record_for_root(root)
+        record = await self._record_for_root(root)
+        if int(time.time()) - record.root_iat > self._config.root_max_age:
+            await self._store.drop_mapping(tenant, key[0])
+            return await self._genesis(tenant, key, ttl, end_user)
+        return record
 
     async def _bind_key_once(
         self, record: ConversationRecord, key: tuple[str, str]

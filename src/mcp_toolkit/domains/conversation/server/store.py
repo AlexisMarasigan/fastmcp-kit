@@ -60,6 +60,10 @@ class ConversationStore(Protocol):
         """Look up `conv:map:{tenant}:{key_hash}`; refresh the sliding TTL on hit (§6.4)."""
         ...
 
+    async def drop_mapping(self, tenant: str, key_hash: str) -> None:
+        """Delete `conv:map:{tenant}:{key_hash}` so the key can re-genesis (§8.2)."""
+        ...
+
     async def genesis(self, record: ConversationRecord) -> tuple[str, bool]:
         """Atomically create a conversation: map claim (when keyed) + record write.
 
@@ -170,6 +174,10 @@ class InMemoryConversationStore:
                 return None
             self._map[map_key] = (root, self._now() + ttl)  # sliding refresh (§6.4)
             return root
+
+    async def drop_mapping(self, tenant: str, key_hash: str) -> None:
+        async with self._lock:
+            self._map.pop(self._map_key(tenant, key_hash), None)
 
     async def genesis(self, record: ConversationRecord) -> tuple[str, bool]:
         async with self._lock:
@@ -351,6 +359,9 @@ class UpstashConversationStore:
             return None
         await self._redis.expire(map_key, ttl)  # sliding refresh (§6.4)
         return str(root)
+
+    async def drop_mapping(self, tenant: str, key_hash: str) -> None:
+        await self._redis.delete(self._map_key(tenant, key_hash))
 
     async def genesis(self, record: ConversationRecord) -> tuple[str, bool]:
         if record.key_hash is not None:
